@@ -10,10 +10,7 @@ body {
   margin: 0;
   min-width: 320px;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background:
-    radial-gradient(circle at 10% 0%, rgba(39, 70, 95, 0.08), transparent 40%),
-    radial-gradient(circle at 90% 10%, rgba(74, 116, 150, 0.08), transparent 36%),
-    #f5f8fb;
+  background: #f1f3f6;
   color: #172a3a;
 }
 

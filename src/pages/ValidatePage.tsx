@@ -11,9 +11,8 @@ import { useFileUpload } from '../hooks/useFileUpload';
 export const ValidatePage = () => {
   const navigate = useNavigate();
   const { uploadedFile, isImage, error, setFile, clearFile } = useFileUpload();
-  const [expectedAmount, setExpectedAmount] = useState('');
-  const [expectedReference, setExpectedReference] = useState('');
-  const [expectedBank, setExpectedBank] = useState('');
+  const [idNumber, setIdNumber] = useState('');
+  const [fullName, setFullName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -25,14 +24,21 @@ export const ValidatePage = () => {
       setFormError('Debes cargar un comprobante para iniciar la validación.');
       return;
     }
+    if (!idNumber.trim()) {
+      setFormError('Ingresa tu número de cédula.');
+      return;
+    }
+    if (!fullName.trim()) {
+      setFormError('Ingresa tu nombre completo.');
+      return;
+    }
 
     try {
       setIsSubmitting(true);
       const { fileToken } = await uploadReceipt({
         file: uploadedFile,
-        expectedAmount,
-        expectedReference,
-        expectedBank,
+        idNumber: idNumber.trim(),
+        fullName: fullName.trim(),
       });
 
       navigate('/procesando', {
@@ -40,9 +46,8 @@ export const ValidatePage = () => {
           fileToken,
           payload: {
             file: uploadedFile,
-            expectedAmount,
-            expectedReference,
-            expectedBank,
+            idNumber: idNumber.trim(),
+            fullName: fullName.trim(),
           },
         },
       });
@@ -54,75 +59,76 @@ export const ValidatePage = () => {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8">
-      <SectionTitle
-        eyebrow="Nueva solicitud"
-        title="Cargar comprobante"
-        description="Adjunta el archivo y, si lo deseas, completa los campos de referencia para mejorar la precisión de la validación."
-      />
+    <div className="mx-auto max-w-6xl">
+      <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-panel md:grid md:grid-cols-[0.88fr_1.12fr]">
+        <aside className="bg-brand-700 px-8 py-10 text-white sm:px-10 sm:py-12">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/80">Nueva validación</p>
+          <h2 className="mt-6 text-3xl font-semibold leading-tight">Cargue su comprobante</h2>
+          <p className="mt-4 text-lg leading-8 text-white/90">
+            Ingrese sus datos para identificar la solicitud. El sistema completará automáticamente los demás datos.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="mt-8 inline-flex rounded-md bg-white px-5 py-2.5 text-sm font-semibold text-brand-700 hover:bg-brand-50"
+          >
+            Volver al inicio
+          </button>
+        </aside>
 
-      <form onSubmit={handleSubmit} className="space-y-6 rounded-xl border border-border bg-surface p-6 shadow-panel sm:p-8">
-        <UploadDropzone onFileSelected={setFile} error={error} />
+        <form onSubmit={handleSubmit} className="space-y-6 px-8 py-10 sm:px-10 sm:py-12">
+          <SectionTitle
+            eyebrow="Formulario de cliente"
+            title="Datos de la validación"
+            description="Complete los campos requeridos y adjunte el archivo del comprobante."
+          />
 
-        {uploadedFile ? <FilePreviewCard uploadedFile={uploadedFile} isImage={isImage} onRemove={clearFile} /> : null}
+          <fieldset className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label htmlFor="idNumber" className="mb-2 block text-sm font-medium text-brand-900">
+                Cédula
+              </label>
+              <input
+                id="idNumber"
+                type="text"
+                value={idNumber}
+                onChange={(event) => setIdNumber(event.target.value)}
+                placeholder="Ej. V-12345678"
+                className="w-full rounded-md border border-border px-4 py-3 text-sm text-brand-900 placeholder:text-muted focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+              />
+            </div>
 
-        <fieldset className="grid gap-4 md:grid-cols-3">
-          <legend className="mb-2 text-sm font-semibold text-brand-900">Datos de apoyo (opcionales)</legend>
+            <div>
+              <label htmlFor="fullName" className="mb-2 block text-sm font-medium text-brand-900">
+                Nombre completo
+              </label>
+              <input
+                id="fullName"
+                type="text"
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+                placeholder="Ej. María Fernanda Pérez"
+                className="w-full rounded-md border border-border px-4 py-3 text-sm text-brand-900 placeholder:text-muted focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+              />
+            </div>
+          </fieldset>
 
-          <div>
-            <label htmlFor="expectedAmount" className="mb-2 block text-sm font-medium text-brand-900">
-              Monto esperado
-            </label>
-            <input
-              id="expectedAmount"
-              type="text"
-              value={expectedAmount}
-              onChange={(event) => setExpectedAmount(event.target.value)}
-              placeholder="Ej. Bs. 2.450,00"
-              className="w-full rounded-md border border-border px-4 py-3 text-sm text-brand-900 placeholder:text-muted focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
-            />
+          <UploadDropzone onFileSelected={setFile} error={error} />
+
+          {uploadedFile ? <FilePreviewCard uploadedFile={uploadedFile} isImage={isImage} onRemove={clearFile} /> : null}
+
+          {formError ? <p className="text-sm font-medium text-danger">{formError}</p> : null}
+
+          <div className="flex flex-wrap gap-3">
+            <PrimaryButton type="submit" disabled={!uploadedFile || isSubmitting} className="px-7">
+              {isSubmitting ? 'Preparando validación...' : 'Validar comprobante'}
+            </PrimaryButton>
+            <SecondaryButton type="button" onClick={() => navigate('/')}>
+              Cancelar
+            </SecondaryButton>
           </div>
-
-          <div>
-            <label htmlFor="expectedReference" className="mb-2 block text-sm font-medium text-brand-900">
-              Referencia esperada
-            </label>
-            <input
-              id="expectedReference"
-              type="text"
-              value={expectedReference}
-              onChange={(event) => setExpectedReference(event.target.value)}
-              placeholder="Ej. 845120"
-              className="w-full rounded-md border border-border px-4 py-3 text-sm text-brand-900 placeholder:text-muted focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="expectedBank" className="mb-2 block text-sm font-medium text-brand-900">
-              Banco esperado
-            </label>
-            <input
-              id="expectedBank"
-              type="text"
-              value={expectedBank}
-              onChange={(event) => setExpectedBank(event.target.value)}
-              placeholder="Ej. Banco Mercantil"
-              className="w-full rounded-md border border-border px-4 py-3 text-sm text-brand-900 placeholder:text-muted focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
-            />
-          </div>
-        </fieldset>
-
-        {formError ? <p className="text-sm font-medium text-danger">{formError}</p> : null}
-
-        <div className="flex flex-wrap gap-3">
-          <PrimaryButton type="submit" disabled={!uploadedFile || isSubmitting}>
-            {isSubmitting ? 'Preparando validación...' : 'Validar comprobante'}
-          </PrimaryButton>
-          <SecondaryButton type="button" onClick={() => navigate('/')}>
-            Volver
-          </SecondaryButton>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 };

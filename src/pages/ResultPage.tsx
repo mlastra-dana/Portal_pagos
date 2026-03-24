@@ -51,13 +51,11 @@ export const ResultPage = () => {
         <StatusBadge status={result.status} />
         <div className="mt-4 space-y-2">
           <SectionTitle title={result.title} description={result.summary} />
-          <p className="text-sm text-muted">
-            ID de validación: <span className="font-semibold text-brand-900">{result.id}</span> | Fecha: {formatDate(result.createdAt)}
-          </p>
+          <p className="text-sm text-muted">Fecha de validación: {formatDate(result.createdAt)}</p>
         </div>
       </div>
 
-      <ResultSummaryCard title="Datos detectados">
+      <ResultSummaryCard title="Datos extraídos del comprobante">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {result.detectedFields.map((field) => (
             <ResultField key={field.label} label={field.label} value={field.value} />
@@ -84,7 +82,7 @@ export const ResultPage = () => {
           to="/validar"
           className="inline-flex items-center rounded-md bg-brand-800 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700"
         >
-          Nueva validación
+          Validar otro comprobante
         </Link>
         <Link
           to="/historial"

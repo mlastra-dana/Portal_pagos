@@ -49,6 +49,11 @@ export const validateReceipt = async (
     id: validationId,
     createdAt: new Date().toISOString(),
     fileName: payload.file.name,
+    detectedFields: [
+      { label: 'Cédula', value: payload.idNumber },
+      { label: 'Nombre', value: payload.fullName },
+      ...base.detectedFields,
+    ],
   };
 
   mockStore.set(validationId, result);

@@ -34,7 +34,6 @@ export interface ValidationHistoryItem {
 
 export interface ValidationRequestPayload {
   file: UploadedFile;
-  expectedAmount?: string;
-  expectedReference?: string;
-  expectedBank?: string;
+  idNumber: string;
+  fullName: string;
 }

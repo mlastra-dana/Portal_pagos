@@ -17,10 +17,10 @@ export const validationResultsByStatus: Record<ValidationStatus, ValidationResul
   APROBADO: {
     id: 'VAL-20260324-001',
     status: 'APROBADO',
-    title: 'Comprobante validado correctamente',
-    summary: 'La información del comprobante coincide con los parámetros esperados para su procesamiento.',
-    observations: ['No se detectaron inconsistencias en la referencia ni en el monto reportado.'],
-    nextAction: 'Tu pago será procesado en el ciclo operativo correspondiente. Conserva este número de validación para seguimiento.',
+    title: 'Pago validado correctamente',
+    summary: 'Tu comprobante fue leído y validado de forma exitosa.',
+    observations: ['No se encontraron diferencias en los datos del comprobante.'],
+    nextAction: 'No debes realizar ninguna acción adicional. Conserva este resultado para tu control.',
     detectedFields: [
       ...baseFields,
       { label: 'Referencia', value: '845120' },
@@ -33,12 +33,12 @@ export const validationResultsByStatus: Record<ValidationStatus, ValidationResul
     id: 'VAL-20260324-002',
     status: 'OBSERVADO',
     title: 'Comprobante con observaciones',
-    summary: 'Se detectó una diferencia menor entre los datos ingresados y los datos extraídos del documento.',
+    summary: 'Se detectaron diferencias menores en la lectura del documento.',
     observations: [
       'El monto detectado presenta una variación de Bs. 20,00 respecto al monto esperado.',
       'La referencia es legible, pero requiere confirmación manual.',
     ],
-    nextAction: 'Verifica los datos y vuelve a cargar el comprobante, o contacta al equipo de soporte con el ID de validación.',
+    nextAction: 'Verifica tu comprobante y vuelve a cargarlo si es necesario.',
     detectedFields: [
       ...baseFields,
       { label: 'Referencia', value: '845121' },
@@ -50,13 +50,13 @@ export const validationResultsByStatus: Record<ValidationStatus, ValidationResul
   RECHAZADO: {
     id: 'VAL-20260324-003',
     status: 'RECHAZADO',
-    title: 'No fue posible validar el comprobante',
-    summary: 'El archivo no contiene información suficiente o consistente para validar la operación.',
+    title: 'No se pudo validar el comprobante',
+    summary: 'No fue posible leer correctamente los datos del archivo cargado.',
     observations: [
       'El número de referencia no pudo ser detectado con claridad.',
       'La imagen presenta baja calidad y elementos truncados.',
     ],
-    nextAction: 'Carga nuevamente un archivo legible (imagen o PDF), verificando que todos los datos del comprobante sean visibles.',
+    nextAction: 'Carga nuevamente un comprobante más legible para continuar.',
     detectedFields: [
       ...baseFields,
       { label: 'Referencia', value: 'No detectada' },

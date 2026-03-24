@@ -1,47 +1,40 @@
 import { Link } from 'react-router-dom';
-import { InfoCard } from '../components/ui/InfoCard';
 import { PrimaryButton } from '../components/ui/PrimaryButton';
 import { SectionTitle } from '../components/ui/SectionTitle';
 
 export const HomePage = () => {
   return (
-    <div className="space-y-10">
-      <section className="rounded-xl border border-border bg-gradient-to-b from-white to-brand-50/40 p-8 shadow-panel sm:p-12">
-        <SectionTitle
-          eyebrow="Portal de validación"
-          title="Validación de comprobantes de pago"
-          description="Carga tu comprobante de forma segura y obtén un resultado claro sobre su consistencia, en un flujo diseñado para clientes y equipos de soporte."
-        />
-
-        <div className="mt-8 flex flex-wrap items-center gap-4">
-          <Link to="/validar">
-            <PrimaryButton>Iniciar validación</PrimaryButton>
-          </Link>
-          <Link
-            to="/historial"
-            className="inline-flex rounded-md border border-border bg-white px-5 py-3 text-sm font-semibold text-brand-800 transition hover:border-brand-300 hover:bg-brand-50"
-          >
-            Consultar historial
-          </Link>
+    <div className="mx-auto max-w-5xl">
+      <section className="overflow-hidden rounded-xl border border-border bg-surface shadow-panel md:grid md:grid-cols-[1fr_1.05fr]">
+        <div className="bg-brand-700 px-8 py-10 text-white sm:px-12 sm:py-14">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/80">Portal cliente</p>
+          <h2 className="mt-8 text-4xl font-semibold leading-tight">Valida tu comprobante de pago</h2>
+          <p className="mt-5 max-w-md text-lg leading-8 text-white/90">
+            Proceso rápido y sencillo para confirmar tu pago de forma segura.
+          </p>
+          <div className="mt-8">
+            <Link
+              to="/historial"
+              className="inline-flex rounded-md bg-white px-6 py-3 text-sm font-semibold text-brand-700 transition hover:bg-brand-50"
+            >
+              Consultar historial
+            </Link>
+          </div>
         </div>
-      </section>
 
-      <section className="grid gap-5 md:grid-cols-3">
-        <InfoCard
-          title="Carga segura"
-          description="Tus comprobantes se procesan en un entorno controlado con trazabilidad de cada validación."
-          icon={<span className="text-lg font-semibold">01</span>}
-        />
-        <InfoCard
-          title="Validación automatizada"
-          description="El sistema identifica y compara datos clave del comprobante para acelerar la revisión."
-          icon={<span className="text-lg font-semibold">02</span>}
-        />
-        <InfoCard
-          title="Resultado claro"
-          description="Obtén un dictamen entendible con observaciones y siguiente acción recomendada."
-          icon={<span className="text-lg font-semibold">03</span>}
-        />
+        <div className="px-8 py-10 sm:px-12 sm:py-14">
+          <SectionTitle
+            eyebrow="¿Ya tiene su comprobante?"
+            title="Ingrese al formulario"
+            description="Solo necesitamos su cédula, nombre completo y el archivo del comprobante."
+          />
+          <div className="mt-8 space-y-4">
+            <Link to="/validar" className="block">
+              <PrimaryButton className="w-full py-3.5 text-base">Iniciar validación</PrimaryButton>
+            </Link>
+            <p className="text-center text-sm text-muted">Atención y soporte durante el horario administrativo.</p>
+          </div>
+        </div>
       </section>
     </div>
   );
