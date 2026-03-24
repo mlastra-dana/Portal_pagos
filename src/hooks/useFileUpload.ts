@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { UploadedFile } from '../types/validation';
 
-const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf'];
+const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'application/pdf'];
 
 export const useFileUpload = () => {
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
@@ -28,7 +28,7 @@ export const useFileUpload = () => {
 
     const isAccepted = ACCEPTED_TYPES.includes(file.type);
     if (!isAccepted) {
-      setError('Formato no permitido. Carga un archivo JPG, PNG o PDF.');
+      setError('Formato no permitido. Carga un archivo JPG, JPEG, PNG, WEBP o PDF.');
       return;
     }
 

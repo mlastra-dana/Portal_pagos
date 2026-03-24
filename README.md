@@ -1,11 +1,21 @@
 # Portal de Validación de Comprobantes
 
-Frontend institucional desarrollado con React + Vite + TypeScript + TailwindCSS, preparado para AWS Amplify Hosting. Simula el flujo de validación de comprobantes de pago con una capa API mock desacoplada para conectar posteriormente con AWS Lambda.
+Frontend corporativo desarrollado con React + Vite + TypeScript + TailwindCSS, preparado para AWS Amplify Hosting.
+
+La validación principal se conecta a un API Gateway real que invoca una Lambda para extraer y validar datos del comprobante.
 
 ## Requisitos
 
 - Node.js 18+
 - npm 9+
+
+## Variables de entorno
+
+Crea un archivo `.env` (puedes copiar desde `.env.example`) con:
+
+```env
+VITE_VALIDATE_API_URL=https://y2fkkc2ru5.execute-api.us-east-1.amazonaws.com/validate
+```
 
 ## Instalación
 
@@ -19,7 +29,7 @@ npm install
 npm run dev
 ```
 
-La aplicación quedará disponible por defecto en `http://localhost:5173`.
+La app queda disponible por defecto en `http://localhost:5173`.
 
 ## Build de producción
 
@@ -27,50 +37,44 @@ La aplicación quedará disponible por defecto en `http://localhost:5173`.
 npm run build
 ```
 
-Para previsualizar el build local:
+Previsualización local del build:
 
 ```bash
 npm run preview
 ```
 
-## Rutas principales
+## Flujo funcional principal (`/validar`)
 
-- `/` Inicio / Landing
-- `/validar` Carga y validación de comprobante
-- `/procesando` Estado de procesamiento
-- `/resultado` Resultado de validación
-- `/historial` Historial mock de validaciones
+1. El usuario carga un archivo (`png`, `jpg`, `jpeg`, `webp`, `pdf`).
+2. El frontend convierte el archivo a base64 en navegador (`FileReader.readAsDataURL`).
+3. El frontend envía `fileName`, `mimeType`, `fileBase64` y `expectedData` opcional al API Gateway.
+4. Se muestra loading mientras responde Lambda.
+5. Se renderiza el resultado con:
+   - estado
+   - resumen
+   - campos extraídos
+   - issues/observaciones
+   - JSON completo de extracción (desplegable + copiar JSON)
 
-## Estructura del proyecto
+## Estructura relevante
 
 ```text
 src/
-  assets/             Recursos estáticos
-  components/         Componentes reutilizables UI
-  data/               Mocks de resultados e historial
-  hooks/              Hooks de lógica de carga
-  layouts/            Estructura base (header/footer)
-  lib/                Utilidades y capa API mock
-  pages/              Pantallas por ruta
-  types/              Tipos e interfaces TypeScript
+  components/result/ValidationResultView.tsx
+  components/ui/UploadDropzone.tsx
+  hooks/useFileUpload.ts
+  lib/fileToBase64.ts
+  lib/api.ts
+  pages/ValidatePage.tsx
+  types/validation.ts
 ```
-
-## Capa API mock y preparación para Lambda
-
-La capa en `src/lib/api.ts` expone:
-
-- `uploadReceipt()`
-- `validateReceipt()`
-- `getValidationResult()`
-- `getValidationHistory()`
-
-Estas funciones usan promesas y latencia artificial (`setTimeout`) para simular llamadas asíncronas. Para integrar backend real, reemplaza internamente estas funciones por invocaciones a API Gateway / Lambda manteniendo la misma firma.
 
 ## Despliegue en AWS Amplify Hosting
 
 1. Crea una app en AWS Amplify y conecta este repositorio.
-2. Amplify detectará Vite automáticamente.
-3. Configuración recomendada de build:
+2. Configura la variable de entorno en Amplify:
+   - `VITE_VALIDATE_API_URL=https://y2fkkc2ru5.execute-api.us-east-1.amazonaws.com/validate`
+3. Build recomendado:
 
 ```yml
 version: 1
@@ -91,10 +95,8 @@ frontend:
       - node_modules/**/*
 ```
 
-4. Publica la rama deseada.
-
 ## Notas
 
-- Actualmente el flujo opera con datos mock locales.
-- El diseño está optimizado para desktop, tablet y móvil.
-- La base está lista para evolucionar a entorno productivo con integración serverless en AWS.
+- La validación principal ya no usa mocks.
+- El historial puede seguir usando datos mock como vista auxiliar.
+- El frontend está listo para operar en Amplify contra API Gateway + Lambda.

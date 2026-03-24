@@ -33,7 +33,7 @@ export const UploadDropzone = ({ onFileSelected, error }: UploadDropzoneProps) =
         )}
       >
         <p className="text-sm font-semibold text-brand-800">Arrastra y suelta tu comprobante aquí</p>
-        <p className="mt-2 text-sm text-muted">Formatos permitidos: JPG, PNG o PDF (máximo 8 MB)</p>
+        <p className="mt-2 text-sm text-muted">Formatos permitidos: JPG, JPEG, PNG, WEBP o PDF (máximo 8 MB)</p>
         <div className="mt-6">
           <PrimaryButton type="button" onClick={() => inputRef.current?.click()}>
             Seleccionar archivo
@@ -44,7 +44,7 @@ export const UploadDropzone = ({ onFileSelected, error }: UploadDropzoneProps) =
           ref={inputRef}
           type="file"
           className="hidden"
-          accept="image/png,image/jpeg,application/pdf"
+          accept="image/png,image/jpeg,image/webp,application/pdf"
           onChange={(event) => onFileSelected(event.target.files?.[0] ?? null)}
         />
       </div>

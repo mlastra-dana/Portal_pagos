@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { EmptyState } from '../components/ui/EmptyState';
-import { SecondaryButton } from '../components/ui/SecondaryButton';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { formatDate } from '../data/mockData';
 import { getValidationHistory } from '../lib/api';
 import type { ValidationHistoryItem } from '../types/validation';
 
 export const HistoryPage = () => {
-  const navigate = useNavigate();
   const [items, setItems] = useState<ValidationHistoryItem[]>([]);
 
   useEffect(() => {
@@ -44,13 +42,9 @@ export const HistoryPage = () => {
                 <p className="text-sm text-muted">{formatDate(item.createdAt)}</p>
                 <p className="truncate text-sm text-muted">{item.fileName}</p>
                 <StatusBadge status={item.status} />
-                <SecondaryButton
-                  type="button"
-                  className="w-fit px-3 py-2 text-xs"
-                  onClick={() => navigate('/resultado', { state: { validationId: item.id } })}
-                >
-                  Ver detalle
-                </SecondaryButton>
+                <Link to="/validar" className="w-fit rounded-md border border-border bg-white px-3 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50">
+                  Validar otro
+                </Link>
               </div>
             ))}
           </div>
