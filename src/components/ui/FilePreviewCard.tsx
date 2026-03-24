@@ -9,12 +9,19 @@ interface FilePreviewCardProps {
 }
 
 export const FilePreviewCard = ({ uploadedFile, isImage, onRemove }: FilePreviewCardProps) => {
+  const typeLabel = uploadedFile.type === 'application/pdf' ? 'PDF' : 'Imagen';
+
   return (
-    <div className="rounded-lg border border-border bg-white p-4 shadow-soft">
+    <div className="rounded-xl border border-border bg-white p-4 shadow-soft">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-brand-900">{uploadedFile.name}</p>
-          <p className="text-sm text-muted">{formatFileSize(uploadedFile.size)}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <p className="text-sm text-muted">{formatFileSize(uploadedFile.size)}</p>
+            <span className="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-700">
+              {typeLabel}
+            </span>
+          </div>
         </div>
         <SecondaryButton type="button" onClick={onRemove} className="px-3 py-2 text-xs">
           Quitar

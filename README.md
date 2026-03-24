@@ -15,7 +15,11 @@ Crea un archivo `.env` (puedes copiar desde `.env.example`) con:
 
 ```env
 VITE_VALIDATE_API_URL=https://y2fkkc2ru5.execute-api.us-east-1.amazonaws.com/validate
+VITE_VALIDATION_MODE=mock
 ```
+
+- `VITE_VALIDATION_MODE=mock`: ejecuta extracción simulada local (sin invocar Lambda).
+- `VITE_VALIDATION_MODE=api`: usa API Gateway + Lambda real.
 
 ## Instalación
 

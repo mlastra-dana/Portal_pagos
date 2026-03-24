@@ -11,6 +11,9 @@ import { useFileUpload } from '../hooks/useFileUpload';
 import { validateReceipt } from '../lib/api';
 import type { ValidationResult } from '../types/validation';
 
+const validationMode = (import.meta.env.VITE_VALIDATION_MODE as string | undefined)?.toLowerCase() ?? 'mock';
+const isLocalMode = validationMode !== 'api';
+
 export const ValidatePage = () => {
   const navigate = useNavigate();
   const { uploadedFile, isImage, error, setFile, clearFile } = useFileUpload();
@@ -76,6 +79,12 @@ export const ValidatePage = () => {
           />
 
           <UploadDropzone onFileSelected={setFile} error={error} />
+
+          {isLocalMode ? (
+            <div className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-brand-900">
+              Modo demo local activo: la extracción es simulada y no invoca Lambda.
+            </div>
+          ) : null}
 
           {uploadedFile ? <FilePreviewCard uploadedFile={uploadedFile} isImage={isImage} onRemove={clearFile} /> : null}
 

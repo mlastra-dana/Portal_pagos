@@ -60,11 +60,24 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
           <FieldCard label="Cuenta destino" value={displayValue(result.fields.CuentaBancariaIA)} />
           <FieldCard label="Banco destino" value={displayValue(result.fields.banco_destinoIA)} />
           <FieldCard label="Fecha" value={displayValue(result.fields.fechaIA)} />
-          <FieldCard label="Referencia completa detectada" value={displayValue(result.fields.CompletereferenciaIA)} />
-          <FieldCard label="Referencia normalizada (últimos 8)" value={displayValue(result.fields.rawReferenceIA)} />
+          <FieldCard label="Referencia completa detectada" value={displayValue(result.fields.rawReferenceIA)} />
+          <FieldCard label="Referencia normalizada (últimos 8)" value={displayValue(result.fields.CompletereferenciaIA)} />
           <FieldCard label="Monto" value={displayValue(result.fields.montoIA)} />
         </div>
       </section>
+
+      {result.audit?.extraction_notes?.length ? (
+        <section className="rounded-lg border border-brand-200 bg-brand-50/50 p-6 shadow-soft">
+          <h4 className="text-base font-semibold text-brand-900">Contexto de extracción</h4>
+          <ul className="mt-3 space-y-2">
+            {result.audit.extraction_notes.map((note) => (
+              <li key={note} className="rounded-md border border-brand-100 bg-white px-4 py-3 text-sm text-muted">
+                {note}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {result.issues.length > 0 ? (
         <section className={`rounded-lg border p-6 shadow-soft ${issueStyle(result.status)}`}>
