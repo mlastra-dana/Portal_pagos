@@ -22,100 +22,136 @@ s3 = boto3.client("s3")
 
 
 MAIN_EXTRACTION_PROMPT = """
-Eres un extractor estricto de datos de comprobantes de pago bancarios de Venezuela.
-Debes responder SOLO JSON válido. No agregues explicación ni markdown.
+Actua como un Sistema de Auditoria y Extraccion de Datos Financieros.
+Debes analizar el comprobante venezolano y devolver SOLO JSON valido.
+No agregues explicaciones, markdown, ni texto adicional.
 
-Objetivo:
-Extraer estos campos del comprobante:
-- CuentaBancariaIA
-- banco_destinoIA
-- fechaIA
-- rawReferenceIA
-- montoIA
-
-Reglas:
-1) CuentaBancariaIA
-- Extrae la cuenta destino.
-- Debe ser una cuenta bancaria real, no una referencia.
-- Si no existe una cuenta bancaria claramente identificable, devuelve null.
-
-2) banco_destinoIA
-- Determina el banco destino preferiblemente por el prefijo de la cuenta destino.
-- Usa un nombre bancario legible.
-- Si no es posible determinarlo, devuelve null.
-
-3) fechaIA
-- Extrae la fecha del comprobante.
-- Devuelve formato YYYY-MM-DD cuando sea posible.
-- Si no puede normalizarse pero existe texto de fecha, devuelve el valor textual original.
-- Si no existe, devuelve null.
-
-4) rawReferenceIA
-- Extrae la referencia completa de la transferencia o comprobante, tal como se ve en el documento.
-- No inventes datos.
-- No la recortes.
-- Si no existe, devuelve null.
-
-5) montoIA
-- Extrae el monto principal pagado o transferido.
-- Devuélvelo como número, sin separadores de miles ni símbolo de moneda.
-- Si no existe, devuelve null.
-
-6) confidence
-- Número entre 0 y 1 sobre la calidad global de la extracción.
-
-7) extraction_notes
-- Lista breve de observaciones útiles de extracción. Puede venir vacía.
-
-Respuesta obligatoria EXACTA:
+OBJETIVO DE SALIDA (EXACTA):
 {
   "CuentaBancariaIA": null,
   "banco_destinoIA": null,
-  "fechaIA": null,
-  "rawReferenceIA": null,
   "montoIA": null,
-  "confidence": 0,
-  "extraction_notes": []
+  "fechaIA": null,
+  "CompletereferenciaIA": null
 }
+
+REGLAS DE EXTRACCION:
+1) CuentaBancariaIA:
+- Buscar cuenta destino / beneficiario cerca de etiquetas:
+  "A la cuenta", "Cuenta abonada", "Cuenta destino", "Beneficiario", "A cuenta", "Destino".
+- Ignorar totalmente:
+  "Desde mi cuenta", "Cuenta de origen", "Cuenta a debitar", "Ordenante", "Debito".
+- Si hay dos cuentas, escoger siempre la que NO es del ordenante.
+- Limpiar guiones, asteriscos y espacios.
+- Validacion anti-referencia:
+  Si es puramente numerica y tiene menos de 20 digitos, NO es cuenta bancaria, devolver null.
+
+2) banco_destinoIA:
+- Si CuentaBancariaIA comienza con 0105 => "Mercantil Banco" (exacto).
+- Si comienza con 0108 o el destino es Provincial => "Banco Provincial" (exacto).
+- Si no se puede determinar con prefijo/texto => null.
+
+3) fechaIA:
+- Buscar "Fecha" o "Fecha de la operacion".
+- Convertir a YYYY-MM-DD.
+- Si la fecha extraida no trae anio visible, usar el anio de $s{FechaProcesamientoIA}.
+- No inventar anio si no existe $s{FechaProcesamientoIA}.
+
+4) CompletereferenciaIA:
+- Extraer referencia numerica desde etiquetas:
+  "Referencia Interbancaria", "Referencia", "Numero de Referencia",
+  "Numero de identificacion", "Operacion", "Ref", "N de Recibo", "Documento", "confirmacion".
+- Priorizar "Referencia Interbancaria".
+- No extraer de Cedula/RIF/ID/Cuenta/campos pagador.
+- Si contiene texto descriptivo, descartarlo.
+- Si esta partida en lineas o con / o -, concatenar y limpiar todo.
+- Salida final: string de digitos.
+
+5) montoIA:
+- Buscar "Monto a transferir", "Total" o "Bs.".
+- Convertir formato venezolano a float estandar:
+  eliminar separador de miles y usar punto decimal.
+  Ejemplo: "10.781,00 Bs" => 10781.00.
+
+REGLAS FINALES:
+- Si no encuentras un campo, devolver null en ese campo.
+- No inventar ni inferir fuera de estas reglas.
 """.strip()
 
 
 ISSUER_EXTRACTION_PROMPT = """
-Eres un extractor estricto del banco emisor/origen de comprobantes de pago de Venezuela.
-Debes responder SOLO JSON válido. No agregues explicación ni markdown.
+Actua como un Sistema de Auditoria y Extraccion de Datos Financieros.
+Tu unica mision es identificar BANCO EMISOR (Origen) del comprobante nacional o internacional.
 
-Objetivo:
-Extraer:
-- banco_emisorIA
-- issuerBankIdIA
+REGLAS CRITICAS:
+- Responder SOLO JSON, sin markdown ni explicaciones.
+- Salida en una sola linea.
 
-Reglas:
-1) banco_emisorIA
-- Determina el banco emisor/origen del comprobante usando la evidencia más fuerte disponible:
-  - cuenta origen o cuenta débito
-  - logo/header
-  - texto explícito del banco
-  - contexto del comprobante
-- Si no puedes determinarlo con suficiente certeza, devuelve "Otros Bancos".
-
-2) issuerBankIdIA
-- Si se identifica con certeza el banco emisor y existe código conocido, devuélvelo como string.
-- Si no aplica o no existe certeza suficiente, devuelve null.
-
-3) confidence
-- Número entre 0 y 1 sobre la calidad de esta detección.
-
-4) detection_strategy
-- Texto corto indicando cómo lo detectaste:
-  "origin_account_prefix", "header_logo", "explicit_text", "international", "fallback_other"
-
-Respuesta obligatoria EXACTA:
+FORMATO DE SALIDA:
 {
-  "banco_emisorIA": "Otros Bancos",
-  "issuerBankIdIA": null,
-  "confidence": 0,
-  "detection_strategy": "fallback_other"
+  "banco_emisorIA": "string",
+  "issuerBankIdIA": "string"
 }
+
+ALGORITMO (A->F):
+A) PRIORIDAD MAXIMA: cuenta de origen/debito
+- Busca "Cuenta de Origen", "Cuenta a Debitar" o "Debito".
+- Si el prefijo coincide con codigo bancario, asigna banco y detener.
+- Si la cuenta esta oculta o no visible, pasar a B.
+
+B) REGLA MERCANTIL (105) estricta:
+- Solo asignar Mercantil si:
+  1) referencia empieza en "00255", o
+  2) existe check grande con "Listo!".
+- Si solo aparece "Mercantil" como destino/beneficiario, NO es emisor.
+
+C) REGLA PROVINCIAL (108):
+- Si hay barra/franja azul con dos avatares en encabezado, asignar Provincial.
+- O si la fecha viene como dia/mes sin anio (ej: 02 AGO), asignar Provincial.
+
+D) INTERNACIONAL / USD:
+- Si detectas Zelle, Mercantil Panama, Banesco Panama, Bank of America, Chase,
+  Wells Fargo, PayPal, Binance o banco extranjero:
+  banco_emisorIA = entidad exacta detectada
+  issuerBankIdIA = "No Aplica"
+  detener.
+
+E) IDENTIFICACION VISUAL GENERICA:
+- Si fallan A-D, usar solo el header (10% superior) para identificar logo y banco.
+- Si hay conflicto entre logo del header y texto del cuerpo, manda logo del header.
+
+F) FALLA NEUTRAL:
+- Si no hay certeza, devolver:
+  { "banco_emisorIA": "Otros Bancos", "issuerBankIdIA": null }
+
+TABLA DE CODIGOS:
+102 Banco de Venezuela
+104 Venezolano de Credito
+105 Mercantil Banco
+108 BBVA Provincial
+114 Bancaribe
+115 Banco Exterior
+128 Banco Caroni
+134 Banesco
+137 Banco Sofitasa
+138 Banco Plaza
+146 Bangente C.A
+151 BFC Banco Fondo Comun
+156 100% Banco
+157 DelSur Banco Universal
+163 Banco del Tesoro
+166 Banco Agricola de Venezuela
+168 Bancrecer, Banco Microfinanciero
+169 R4, Banco Microfinanciero
+171 Banco Activo
+172 Bancamiga
+173 Banco Internacional de Desarrollo
+174 Banplus Banco Universal
+175 Banco Digital de Los Trabajadores
+177 Banco de la Fuerza Armada Nacional Bolivariana
+178 N58 Banco Digital
+191 Banco Nacional de Credito
+601 Instituto Municipal de Credito Popular
 """.strip()
 
 

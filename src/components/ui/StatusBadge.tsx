@@ -9,7 +9,7 @@ const styles: Record<ValidationStatus, string> = {
 
 const labels: Record<ValidationStatus, string> = {
   APPROVED: 'APROBADO',
-  OBSERVED: 'OBSERVADO',
+  OBSERVED: 'EN REVISIÓN',
   REJECTED: 'RECHAZADO',
 };
 

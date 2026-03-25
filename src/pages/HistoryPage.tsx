@@ -17,7 +17,7 @@ export const HistoryPage = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold text-brand-900">Historial de validaciones</h1>
-        <p className="mt-2 text-sm text-muted">Consulta resultados anteriores y revisa el estado de cada comprobante procesado.</p>
+        <p className="mt-2 text-sm text-muted">Consulta resultados anteriores y revisa el estado de cada pago procesado.</p>
       </div>
 
       {items.length === 0 ? (

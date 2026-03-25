@@ -9,9 +9,8 @@ export interface UploadedFile {
 }
 
 export interface ExpectedData {
-  montoEsperado?: string;
-  referenciaEsperada?: string;
-  bancoEsperado?: string;
+  nombreDepositante?: string;
+  cedulaDepositante?: string;
 }
 
 export interface ValidationFields {

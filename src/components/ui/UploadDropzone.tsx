@@ -27,23 +27,23 @@ export const UploadDropzone = ({ onFileSelected, error }: UploadDropzoneProps) =
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
         className={cn(
-          'rounded-xl border-2 border-dashed bg-gradient-to-br from-white to-brand-50/40 p-8 text-center transition',
-          isDragging ? 'scale-[1.01] border-brand-500 bg-brand-50 shadow-soft' : 'border-border',
+          'rounded-md border-2 border-dashed bg-white p-8 text-center transition',
+          isDragging ? 'border-brand-500 bg-brand-50' : 'border-border',
           error ? 'border-danger bg-danger/5' : '',
         )}
       >
-        <p className="text-sm font-semibold uppercase tracking-[0.14em] text-brand-700">Carga segura</p>
-        <p className="mt-2 text-xl font-semibold text-brand-900">Arrastra y suelta tu comprobante aquí</p>
-        <p className="mt-3 text-sm text-muted">También puedes seleccionar manualmente desde tu dispositivo.</p>
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs font-medium text-brand-700">
-          <span className="rounded-full border border-brand-200 bg-white px-3 py-1">JPG</span>
-          <span className="rounded-full border border-brand-200 bg-white px-3 py-1">PNG</span>
-          <span className="rounded-full border border-brand-200 bg-white px-3 py-1">WEBP</span>
-          <span className="rounded-full border border-brand-200 bg-white px-3 py-1">PDF</span>
-          <span className="rounded-full border border-brand-200 bg-white px-3 py-1">Hasta 8 MB</span>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-700">Carga segura</p>
+        <p className="mt-2 text-base font-semibold text-brand-900">Arrastra y suelta tu comprobante aquí</p>
+        <p className="mt-3 text-xs text-muted">También puedes seleccionar manualmente desde tu dispositivo.</p>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-[11px] font-medium text-brand-700">
+          <span className="rounded-full border border-brand-200 bg-white px-2.5 py-0.5">JPG</span>
+          <span className="rounded-full border border-brand-200 bg-white px-2.5 py-0.5">PNG</span>
+          <span className="rounded-full border border-brand-200 bg-white px-2.5 py-0.5">WEBP</span>
+          <span className="rounded-full border border-brand-200 bg-white px-2.5 py-0.5">PDF</span>
+          <span className="rounded-full border border-brand-200 bg-white px-2.5 py-0.5">Hasta 8 MB</span>
         </div>
         <div className="mt-6">
-          <PrimaryButton type="button" onClick={() => inputRef.current?.click()}>
+          <PrimaryButton type="button" onClick={() => inputRef.current?.click()} className="px-5 py-2.5 text-sm">
             Seleccionar archivo
           </PrimaryButton>
         </div>

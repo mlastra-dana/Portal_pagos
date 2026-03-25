@@ -21,12 +21,36 @@ const issueStyle = (status: ValidationResult['status']): string => {
 
 export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
   const [copied, setCopied] = useState(false);
+  const statusDescription: Record<ValidationResult['status'], string> = {
+    APPROVED: 'Pago validado correctamente.',
+    OBSERVED: 'Pago en revisión. Verifique los datos extraídos.',
+    REJECTED: 'Pago rechazado. Revise el comprobante cargado.',
+  };
 
-  const jsonContent = JSON.stringify(result, null, 2);
+  const promptMainJson = JSON.stringify(
+    {
+      CuentaBancariaIA: result.fields.CuentaBancariaIA ?? null,
+      banco_destinoIA: result.fields.banco_destinoIA ?? null,
+      montoIA: result.fields.montoIA ?? null,
+      fechaIA: result.fields.fechaIA ?? null,
+      CompletereferenciaIA: result.fields.CompletereferenciaIA ?? result.fields.rawReferenceIA ?? null,
+    },
+    null,
+    2,
+  );
+
+  const promptIssuerJson = JSON.stringify(
+    {
+      banco_emisorIA: result.fields.banco_emisorIA ?? 'Otros Bancos',
+      issuerBankIdIA: result.fields.issuerBankIdIA ?? null,
+    },
+    null,
+    2,
+  );
 
   const copyJson = async () => {
     try {
-      await navigator.clipboard.writeText(jsonContent);
+      await navigator.clipboard.writeText(`${promptMainJson}\n\n${promptIssuerJson}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch {
@@ -41,7 +65,7 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
           <div className="space-y-2">
             <StatusBadge status={result.status} />
             <h3 className="text-2xl font-semibold text-brand-900">Resultado de validación</h3>
-            <p className="text-sm text-muted">{result.summary}</p>
+            <p className="text-sm text-muted">{statusDescription[result.status]}</p>
           </div>
           <div className="text-sm text-muted">
             <p>
@@ -66,19 +90,6 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
         </div>
       </section>
 
-      {result.audit?.extraction_notes?.length ? (
-        <section className="rounded-lg border border-brand-200 bg-brand-50/50 p-6 shadow-soft">
-          <h4 className="text-base font-semibold text-brand-900">Contexto de extracción</h4>
-          <ul className="mt-3 space-y-2">
-            {result.audit.extraction_notes.map((note) => (
-              <li key={note} className="rounded-md border border-brand-100 bg-white px-4 py-3 text-sm text-muted">
-                {note}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
       {result.issues.length > 0 ? (
         <section className={`rounded-lg border p-6 shadow-soft ${issueStyle(result.status)}`}>
           <h4 className="text-base font-semibold text-brand-900">Observaciones</h4>
@@ -95,7 +106,7 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
       <section className="rounded-lg border border-border bg-white p-6 shadow-soft">
         <details className="group">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-semibold text-brand-900">
-            JSON de extracción
+            JSON de extracción (prompts)
             <span className="text-xs text-muted transition group-open:rotate-180">▼</span>
           </summary>
           <div className="mt-4 space-y-3">
@@ -106,7 +117,10 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
             >
               {copied ? 'JSON copiado' : 'Copiar JSON'}
             </button>
-            <pre className="max-h-96 overflow-auto rounded-md border border-border bg-bg p-4 text-xs text-brand-900">{jsonContent}</pre>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <pre className="max-h-96 overflow-auto rounded-md border border-border bg-bg p-4 text-xs text-brand-900">{promptMainJson}</pre>
+              <pre className="max-h-96 overflow-auto rounded-md border border-border bg-bg p-4 text-xs text-brand-900">{promptIssuerJson}</pre>
+            </div>
           </div>
         </details>
       </section>

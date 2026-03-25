@@ -33,10 +33,11 @@ module.exports = {
       },
       boxShadow: {
         soft: '0 1px 2px rgba(7, 52, 90, 0.08), 0 8px 24px rgba(7, 52, 90, 0.08)',
-        panel: '0 10px 32px rgba(10, 32, 58, 0.12)'
+        panel: '0 14px 42px rgba(10, 32, 58, 0.14)',
+        premium: '0 20px 60px rgba(8, 34, 63, 0.16)'
       },
       fontFamily: {
-        sans: ['"Segoe UI"', 'Tahoma', 'Geneva', 'Verdana', 'sans-serif']
+        sans: ['"Avenir Next"', '"Helvetica Neue"', '"Segoe UI"', 'Tahoma', 'Geneva', 'Verdana', 'sans-serif']
       }
     }
   },

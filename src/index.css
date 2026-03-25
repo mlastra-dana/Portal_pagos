@@ -9,9 +9,11 @@
 body {
   margin: 0;
   min-width: 320px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: #f1f3f6;
+  font-family: 'Avenir Next', 'Helvetica Neue', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: radial-gradient(circle at top left, #f7f9fc 0%, #eef2f7 45%, #edf1f5 100%);
   color: #172a3a;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 * {

@@ -5,10 +5,12 @@ import { Header } from '../components/Header';
 export const AppShell = ({ children }: PropsWithChildren) => {
   return (
     <div className="min-h-screen bg-bg text-text">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1320px] flex-col px-4 sm:px-6 lg:px-8">
+      <div className="flex min-h-screen w-full flex-col">
         <Header />
-        <main className="flex-1 py-10 sm:py-14">{children}</main>
-        <Footer />
+        <main className="mx-auto flex w-full max-w-[1800px] flex-1 px-4 py-8 sm:px-6 sm:py-10 lg:px-8">{children}</main>
+        <div className="mx-auto w-full max-w-[1800px] px-4 sm:px-6 lg:px-8">
+          <Footer />
+        </div>
       </div>
     </div>
   );
