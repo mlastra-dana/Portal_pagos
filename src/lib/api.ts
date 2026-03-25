@@ -90,6 +90,7 @@ const simulateLocalValidation = async (file: File, expectedData?: ExpectedData):
   const montoIA = extracted.montoIA ?? null;
   const fechaIA = extracted.fechaIA ?? null;
   const CuentaBancariaIA = extracted.CuentaBancariaIA ?? null;
+  const bancoDestinoIA = extracted.banco_destinoIA ?? 'Mercantil Banco';
 
   const issues: string[] = [];
 
@@ -101,6 +102,15 @@ const simulateLocalValidation = async (file: File, expectedData?: ExpectedData):
   }
   if (!CuentaBancariaIA) {
     issues.push('No se pudo extraer la cuenta destino del documento.');
+  }
+  if (montoIA === null) {
+    issues.push('No se pudo extraer el monto del documento.');
+  }
+  if (!extracted.banco_emisorIA) {
+    issues.push('No se pudo extraer el banco emisor del documento.');
+  }
+  if (!extracted.issuerBankIdIA) {
+    issues.push('No se pudo extraer el código del banco emisor del documento.');
   }
 
   // En carga automática (sin datos manuales), no marcar como rechazado de inmediato.
@@ -130,7 +140,7 @@ const simulateLocalValidation = async (file: File, expectedData?: ExpectedData):
       banco_emisorIA: extracted.banco_emisorIA ?? null,
       issuerBankIdIA: extracted.issuerBankIdIA ?? null,
       CuentaBancariaIA,
-      banco_destinoIA: extracted.banco_destinoIA ?? null,
+      banco_destinoIA: bancoDestinoIA,
       fechaIA,
       rawReferenceIA: rawReference,
       CompletereferenciaIA: completeReference,
@@ -146,7 +156,7 @@ const simulateLocalValidation = async (file: File, expectedData?: ExpectedData):
     rawExtraction: {
       main: {
         CuentaBancariaIA,
-        banco_destinoIA: extracted.banco_destinoIA ?? null,
+        banco_destinoIA: bancoDestinoIA,
         fechaIA,
         rawReferenceIA: rawReference,
         montoIA,
