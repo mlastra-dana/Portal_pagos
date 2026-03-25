@@ -81,9 +81,6 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
             <p className="text-sm text-muted">{statusDescription[result.status]}</p>
           </div>
           <div className="text-sm text-muted">
-            <p>
-              ID: <span className="font-semibold text-brand-900">{result.validationId}</span>
-            </p>
             <p>Procesado: {formatDate(result.processedAt)}</p>
           </div>
         </div>
