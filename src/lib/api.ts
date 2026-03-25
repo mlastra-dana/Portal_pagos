@@ -57,6 +57,22 @@ const normalizeResult = (raw: unknown): ValidationResult => {
   };
 };
 
+const softenAutoStatus = (result: ValidationResult, expectedData?: ExpectedData): ValidationResult => {
+  const hasManualValidationInput = Boolean(
+    expectedData?.nombreDepositante?.trim() || expectedData?.cedulaDepositante?.trim(),
+  );
+
+  if (hasManualValidationInput || result.status !== 'REJECTED') {
+    return result;
+  }
+
+  return {
+    ...result,
+    status: 'OBSERVED',
+    summary: 'Pago en revisión.',
+  };
+};
+
 const normalizeReference = (value: string | undefined): string | null => {
   if (!value) return null;
   const digits = value.replace(/\D/g, '');
@@ -66,6 +82,9 @@ const normalizeReference = (value: string | undefined): string | null => {
 const simulateLocalValidation = async (file: File, expectedData?: ExpectedData): Promise<ValidationResult> => {
   const localExtraction = await extractReceiptWithLocalOcr(file);
   const extracted = localExtraction.fields;
+  const hasManualValidationInput = Boolean(
+    expectedData?.nombreDepositante?.trim() || expectedData?.cedulaDepositante?.trim(),
+  );
 
   const rawReference = extracted.rawReferenceIA ?? extracted.CompletereferenciaIA ?? null;
   const completeReference = normalizeReference(rawReference ?? undefined);
@@ -85,7 +104,16 @@ const simulateLocalValidation = async (file: File, expectedData?: ExpectedData):
     issues.push('No se pudo extraer la cuenta destino del documento.');
   }
 
-  const status: ValidationStatus = issues.length === 0 ? 'APPROVED' : issues.length <= 2 ? 'OBSERVED' : 'REJECTED';
+  // En carga automática (sin datos manuales), no marcar como rechazado de inmediato.
+  const status: ValidationStatus = hasManualValidationInput
+    ? issues.length === 0
+      ? 'APPROVED'
+      : issues.length <= 2
+        ? 'OBSERVED'
+        : 'REJECTED'
+    : issues.length === 0
+      ? 'APPROVED'
+      : 'OBSERVED';
   const summaryByStatus: Record<ValidationStatus, string> = {
     APPROVED: 'Pago validado correctamente.',
     OBSERVED: 'Pago en revisión.',
@@ -138,7 +166,8 @@ const simulateLocalValidation = async (file: File, expectedData?: ExpectedData):
 
 export const validateReceipt = async (file: File, expectedData?: ExpectedData): Promise<ValidationResult> => {
   if (!USE_REMOTE_API) {
-    return simulateLocalValidation(file, expectedData);
+    const localResult = await simulateLocalValidation(file, expectedData);
+    return softenAutoStatus(localResult, expectedData);
   }
 
   if (!API_URL) {
@@ -178,7 +207,8 @@ export const validateReceipt = async (file: File, expectedData?: ExpectedData): 
     );
   }
 
-  return normalizeResult(data);
+  const remoteResult = normalizeResult(data);
+  return softenAutoStatus(remoteResult, expectedData);
 };
 
 export const getValidationHistory = async (): Promise<ValidationHistoryItem[]> => {

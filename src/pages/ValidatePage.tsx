@@ -41,6 +41,7 @@ export const ValidatePage = () => {
     let isCancelled = false;
 
     const runAutoExtraction = async () => {
+      setResult(null);
       setIsAutoExtracting(true);
       setFormError('');
       setTechnicalError('');

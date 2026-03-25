@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { UploadedFile } from '../types/validation';
 
-const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'application/pdf'];
+const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'application/pdf', 'application/x-pdf'];
 
 export const useFileUpload = () => {
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);

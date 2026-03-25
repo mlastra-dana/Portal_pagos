@@ -2,6 +2,7 @@ import Tesseract from 'tesseract.js';
 import { BANK_CODE_MAP, DESTINATION_LABELS, ORIGIN_EXCLUDED_LABELS, REFERENCE_LABELS_PRIORITY } from '../config/idpRules';
 import type { ValidationFields } from '../types/validation';
 import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 interface LocalOcrExtractionResult {
   fields: ValidationFields;
@@ -16,10 +17,7 @@ let pdfWorkerConfigured = false;
 const ensurePdfWorker = () => {
   if (pdfWorkerConfigured) return;
   try {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-      'pdfjs-dist/build/pdf.worker.min.mjs',
-      import.meta.url,
-    ).toString();
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
     pdfWorkerConfigured = true;
   } catch {
     pdfWorkerConfigured = true;
@@ -286,7 +284,7 @@ const extractTextFromPdf = async (file: File): Promise<{ text: string; confidenc
       pdf = await loadingTaskNoWorker.promise;
     }
 
-    // 1) First try embedded/selectable text on first pages.
+    // 1) First try embedded/selectable text.
     let embeddedText = '';
     const pagesToRead = Math.min(pdf.numPages, 3);
     for (let pageNum = 1; pageNum <= pagesToRead; pageNum += 1) {
@@ -300,15 +298,7 @@ const extractTextFromPdf = async (file: File): Promise<{ text: string; confidenc
     }
     embeddedText = embeddedText.trim();
 
-    if (embeddedText.length >= 60) {
-      return {
-        text: embeddedText,
-        confidence: 0.9,
-        note: 'Extracción PDF por texto embebido.',
-      };
-    }
-
-    // 2) OCR fallback on up to first 2 pages.
+    // 2) OCR support for scanned PDFs (always at least first page).
     const ocrPageCount = Math.min(pdf.numPages, 2);
     let ocrText = '';
     let confidenceAcc = 0;
@@ -341,11 +331,28 @@ const extractTextFromPdf = async (file: File): Promise<{ text: string; confidenc
       }
     }
 
-    if (ocrText.trim().length > 0) {
+    const hasEmbedded = embeddedText.length > 0;
+    const hasOcr = ocrText.trim().length > 0;
+    const combinedText = [embeddedText, ocrText.trim()].filter(Boolean).join('\n').trim();
+
+    if (hasEmbedded || hasOcr) {
+      const combinedConfidence =
+        hasEmbedded && hasOcr
+          ? Math.max(0.82, validPasses > 0 ? (confidenceAcc / validPasses + 0.9) / 2 : 0.85)
+          : hasEmbedded
+            ? 0.9
+            : validPasses > 0
+              ? confidenceAcc / validPasses
+              : 0.6;
+
       return {
-        text: ocrText.trim(),
-        confidence: validPasses > 0 ? confidenceAcc / validPasses : 0.6,
-        note: 'Extracción PDF por OCR de páginas renderizadas.',
+        text: combinedText,
+        confidence: combinedConfidence,
+        note: hasEmbedded && hasOcr
+          ? 'Extracción PDF combinada (texto embebido + OCR).'
+          : hasEmbedded
+            ? 'Extracción PDF por texto embebido.'
+            : 'Extracción PDF por OCR de páginas renderizadas.',
       };
     }
 
