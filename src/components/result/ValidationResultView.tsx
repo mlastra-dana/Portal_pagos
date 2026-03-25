@@ -40,20 +40,13 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
     REJECTED: 'Pago rechazado. Revise el comprobante cargado.',
   };
 
-  const promptMainJson = JSON.stringify(
+  const promptExtractionJson = JSON.stringify(
     {
       CuentaBancariaIA: result.fields.CuentaBancariaIA ?? null,
       banco_destinoIA: result.fields.banco_destinoIA ?? null,
       montoIA: result.fields.montoIA ?? null,
       fechaIA: result.fields.fechaIA ?? null,
-      CompletereferenciaIA: result.fields.CompletereferenciaIA ?? result.fields.rawReferenceIA ?? null,
-    },
-    null,
-    2,
-  );
-
-  const promptIssuerJson = JSON.stringify(
-    {
+      CompletereferenciaIA: result.fields.CompletereferenciaIA ?? null,
       banco_emisorIA: result.fields.banco_emisorIA ?? 'Otros Bancos',
       issuerBankIdIA: result.fields.issuerBankIdIA ?? null,
     },
@@ -63,7 +56,7 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
 
   const copyJson = async () => {
     try {
-      await navigator.clipboard.writeText(`${promptMainJson}\n\n${promptIssuerJson}`);
+      await navigator.clipboard.writeText(promptExtractionJson);
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch {
@@ -115,7 +108,7 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
       <section className="rounded-lg border border-border bg-white p-6 shadow-soft">
         <details className="group">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-semibold text-brand-900">
-            JSON de extracción (prompts)
+            JSON de extracción
             <span className="text-xs text-muted transition group-open:rotate-180">▼</span>
           </summary>
           <div className="mt-4 space-y-3">
@@ -126,10 +119,7 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
             >
               {copied ? 'JSON copiado' : 'Copiar JSON'}
             </button>
-            <div className="grid gap-3 lg:grid-cols-2">
-              <pre className="max-h-96 overflow-auto rounded-md border border-border bg-bg p-4 text-xs text-brand-900">{promptMainJson}</pre>
-              <pre className="max-h-96 overflow-auto rounded-md border border-border bg-bg p-4 text-xs text-brand-900">{promptIssuerJson}</pre>
-            </div>
+            <pre className="max-h-96 overflow-auto rounded-md border border-border bg-bg p-4 text-xs text-brand-900">{promptExtractionJson}</pre>
           </div>
         </details>
       </section>
