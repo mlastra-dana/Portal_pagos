@@ -481,8 +481,8 @@ const extractCuentaDestino = (lines: string[]): string | null => {
     const isPureNumeric = /^[\d\s\-._,·]+$/.test(raw);
     const hasMask = /[*xX•._,·]/.test(raw);
 
-    if (isPureNumeric && onlyDigits.length < 20) return null;
-    if (onlyDigits.length === 0) return null;
+    if (isPureNumeric && onlyDigits.length < 20) continue;
+    if (onlyDigits.length === 0) continue;
     if (hasMask) {
       if (onlyDigits.length >= 4) return `****${onlyDigits.slice(-4)}`;
       return `****${onlyDigits}`;
@@ -551,13 +551,6 @@ const extractReferencia = (lines: string[], fechaIA: string | null, montoIA: num
     return candidate;
   }
 
-  // Fallback especial Mercantil/Banesco: referencias suelen iniciar en 00255 y ser largas.
-  const mercantilLike = lines
-    .flatMap((line) => line.match(/\b00\d{8,20}\b/g) ?? [])
-    .map((value) => cleanDigits(value))
-    .find((digits) => digits.length >= 10);
-  if (mercantilLike) return mercantilLike;
-
   return null;
 };
 
@@ -602,11 +595,6 @@ const inferIssuerFromPromptRules = (
   const issuerEvidenceText = getStrongIssuerEvidenceText(lines);
   const strongIssuerText = `${headerText}\n${issuerEvidenceText}`;
 
-  const headerByName = bankKeywords.find((entry) => entry.id !== 'No Aplica' && entry.pattern.test(headerText));
-  if (headerByName) {
-    return { banco: headerByName.name, id: headerByName.id, strategy: 'header_top_lines_match' };
-  }
-
   const originCandidate = findLabeledValue(lines, ['cuenta de origen', 'cuenta a debitar', 'debito']);
   if (originCandidate) {
     const digits = cleanDigits(originCandidate);
@@ -617,8 +605,7 @@ const inferIssuerFromPromptRules = (
     }
   }
 
-  const mercantilTextEvidence = /mercantil/i.test(strongIssuerText);
-  if ((referencia && referencia.startsWith('00255') && mercantilTextEvidence) || /listo/i.test(strongIssuerText)) {
+  if ((referencia && referencia.startsWith('00255')) || /listo/i.test(strongIssuerText)) {
     return { banco: 'Mercantil Banco', id: '105', strategy: 'mercantil_unique_pattern' };
   }
 
@@ -629,6 +616,11 @@ const inferIssuerFromPromptRules = (
   const international = bankKeywords.find((entry) => entry.id === 'No Aplica' && entry.pattern.test(text));
   if (international) {
     return { banco: international.name, id: 'No Aplica', strategy: 'international_exception' };
+  }
+
+  const headerByName = bankKeywords.find((entry) => entry.id !== 'No Aplica' && entry.pattern.test(headerText));
+  if (headerByName) {
+    return { banco: headerByName.name, id: headerByName.id, strategy: 'header_top_lines_match' };
   }
 
   const localByName = bankKeywords.find(

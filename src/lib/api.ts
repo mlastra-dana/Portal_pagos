@@ -83,17 +83,17 @@ type LocalExtraction = Awaited<ReturnType<typeof extractReceiptWithLocalOcr>>;
 
 const validateDocumentAdmission = (localExtraction: LocalExtraction): void => {
   const text = (localExtraction.rawText ?? '').trim();
-  const normalized = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const extracted = localExtraction.fields;
 
-  const hasDateStructure = /\b\d{1,2}[\/\-\.]\d{1,2}[\/\-\.](?:\d{2}|\d{4})\b/.test(text);
-  const hasAmountStructure =
-    /\b\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})\b/.test(text)
-    || /(?:bs\.?|ves|\$)\s*\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})?/i.test(text)
-    || /\b\d{4,}(?:,\d{2})\b/.test(text);
-  const hasBankAccountStructure = /\b\d{20}\b/.test(text) || /\b\d{4}[*xX•._,·]{2,}\d{3,}\b/.test(text);
+  const hasDateStructure = Boolean(extracted.fechaIA) || /\b\d{1,2}[\/\-\.]\d{1,2}[\/\-\.](?:\d{2}|\d{4})\b/.test(text);
+  const hasAmountStructure = extracted.montoIA !== null || /\b\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})\b/.test(text);
+  const hasBankAccountStructure =
+    Boolean(extracted.CuentaBancariaIA)
+    || /\b\d{20}\b/.test(text)
+    || /\b\d{4}[*xX•._,·]{2,}\d{3,}\b/.test(text);
   const hasReferenceStructure =
-    (/(?:n\s*[°ºo]?\s*de\s*recibo|numero\s*de\s*recibo|nro\.?\s*de\s*recibo|referenc|ref\b)/i.test(normalized)
-      && /\d{6,}/.test(text));
+    Boolean(extracted.rawReferenceIA ?? extracted.CompletereferenciaIA)
+    || /(?:n\s*[°ºo]?\s*de\s*recibo|numero\s*de\s*recibo|nro\.?\s*de\s*recibo|referenc|ref\b)/i.test(text);
 
   const structuralScore = [
     hasDateStructure,
@@ -101,8 +101,6 @@ const validateDocumentAdmission = (localExtraction: LocalExtraction): void => {
     hasBankAccountStructure,
     hasReferenceStructure,
   ].filter(Boolean).length;
-
-  const extracted = localExtraction.fields;
   const extractedCoreFields = [
     extracted.CuentaBancariaIA,
     extracted.montoIA,
