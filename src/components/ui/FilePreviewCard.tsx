@@ -1,6 +1,5 @@
 import type { UploadedFile } from '../../types/validation';
 import { formatFileSize } from '../../lib/utils';
-import { SecondaryButton } from './SecondaryButton';
 
 interface FilePreviewCardProps {
   uploadedFile: UploadedFile;
@@ -23,9 +22,14 @@ export const FilePreviewCard = ({ uploadedFile, isImage, onRemove }: FilePreview
             </span>
           </div>
         </div>
-        <SecondaryButton type="button" onClick={onRemove} className="px-3 py-2 text-xs">
-          Quitar
-        </SecondaryButton>
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label="Quitar archivo"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white text-xl font-semibold leading-none text-brand-700 transition hover:border-brand-300 hover:bg-brand-50"
+        >
+          ×
+        </button>
       </div>
 
       <div className="mt-4 rounded-md border border-border bg-bg p-3">

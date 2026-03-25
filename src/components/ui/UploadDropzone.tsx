@@ -1,6 +1,5 @@
 import { useRef, useState, type DragEvent } from 'react';
 import { cn } from '../../lib/utils';
-import { PrimaryButton } from './PrimaryButton';
 
 interface UploadDropzoneProps {
   onFileSelected: (file: File | null) => void;
@@ -27,25 +26,36 @@ export const UploadDropzone = ({ onFileSelected, error }: UploadDropzoneProps) =
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
         className={cn(
-          'rounded-md border-2 border-dashed bg-white p-8 text-center transition',
+          'rounded-xl border-2 border-dashed bg-white p-8 text-center transition',
           isDragging ? 'border-brand-500 bg-brand-50' : 'border-border',
           error ? 'border-danger bg-danger/5' : '',
         )}
       >
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-700">Carga segura</p>
-        <p className="mt-2 text-base font-semibold text-brand-900">Arrastra y suelta tu comprobante aquí</p>
-        <p className="mt-3 text-xs text-muted">También puedes seleccionar manualmente desde tu dispositivo.</p>
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-[11px] font-medium text-brand-700">
-          <span className="rounded-full border border-brand-200 bg-white px-2.5 py-0.5">JPG</span>
-          <span className="rounded-full border border-brand-200 bg-white px-2.5 py-0.5">PNG</span>
-          <span className="rounded-full border border-brand-200 bg-white px-2.5 py-0.5">WEBP</span>
-          <span className="rounded-full border border-brand-200 bg-white px-2.5 py-0.5">PDF</span>
-          <span className="rounded-full border border-brand-200 bg-white px-2.5 py-0.5">Hasta 8 MB</span>
+        <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-700">
+          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M20 16.5a4.5 4.5 0 0 0-2.2-8.4 6 6 0 0 0-11.5 1.9A4 4 0 0 0 6 18h12a2 2 0 0 0 2-1.5z" />
+            <path d="M12 16V9" />
+            <path d="m9.5 11.5 2.5-2.5 2.5 2.5" />
+          </svg>
         </div>
-        <div className="mt-6">
-          <PrimaryButton type="button" onClick={() => inputRef.current?.click()} className="px-5 py-2.5 text-sm">
-            Seleccionar archivo
-          </PrimaryButton>
+
+        <p className="mt-3 text-[1.95rem] leading-tight text-brand-900 sm:text-[2.15rem]">Suba su comprobante</p>
+        <p className="mx-auto mt-3 max-w-2xl text-sm text-muted">
+          Arrastre y suelte su archivo aquí o selecciónelo manualmente.
+        </p>
+
+        <div className="mt-5">
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="inline-flex items-center justify-center rounded-2xl border border-brand-300 bg-white px-8 py-3 text-base font-semibold text-brand-700 transition hover:bg-brand-50"
+          >
+            Adjuntar comprobante
+          </button>
+        </div>
+
+        <div className="mt-4 text-sm text-muted">
+          Solo PDF, JPG, PNG, WEBP. Máximo 12 MB.
         </div>
         <input
           aria-label="Seleccionar archivo de comprobante"

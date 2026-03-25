@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ValidationResultView } from '../components/result/ValidationResultView';
 import { FilePreviewCard } from '../components/ui/FilePreviewCard';
 import { PrimaryButton } from '../components/ui/PrimaryButton';
@@ -10,13 +11,13 @@ import { validateReceipt } from '../lib/api';
 import type { ValidationResult } from '../types/validation';
 
 export const ValidatePage = () => {
+  const navigate = useNavigate();
   const { uploadedFile, isImage, error, setFile, clearFile } = useFileUpload();
 
   const [nombreDepositante, setNombreDepositante] = useState('');
   const [cedulaTipo, setCedulaTipo] = useState<'V' | 'J'>('V');
   const [cedulaNumero, setCedulaNumero] = useState('');
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAutoExtracting, setIsAutoExtracting] = useState(false);
   const [formError, setFormError] = useState('');
   const [technicalError, setTechnicalError] = useState('');
@@ -79,21 +80,43 @@ export const ValidatePage = () => {
       return;
     }
 
-    try {
-      setIsSubmitting(true);
-      const cedulaDepositante = cedulaNumero.trim() ? `${cedulaTipo}-${cedulaNumero.trim()}` : undefined;
-      const response = await validateReceipt(uploadedFile.file, {
-        nombreDepositante: nombreDepositante.trim() || undefined,
-        cedulaDepositante,
-      });
-      setResult(response);
-    } catch (submitError) {
-      setFormError('No fue posible procesar el comprobante. Verifica el archivo e inténtalo nuevamente.');
-      setTechnicalError(submitError instanceof Error ? submitError.message : 'Error inesperado en la validación.');
-    } finally {
-      setIsSubmitting(false);
+    if (!result) {
+      setFormError('Primero debemos terminar la extracción del comprobante.');
+      return;
     }
+
+    if (!nombreDepositante.trim()) {
+      setFormError('El nombre del depositante es obligatorio.');
+      return;
+    }
+
+    if (!cedulaNumero.trim()) {
+      setFormError('La cédula de identidad es obligatoria.');
+      return;
+    }
+
+    navigate('/documentos-complementarios', {
+      state: {
+        depositor: {
+          nombre: nombreDepositante.trim(),
+          cedula: `${cedulaTipo}-${cedulaNumero.trim()}`,
+        },
+        extraction: result,
+        comprobante: {
+          name: uploadedFile.name,
+          size: uploadedFile.size,
+          type: uploadedFile.type,
+        },
+      },
+    });
   };
+
+  const isContinueDisabled =
+    !uploadedFile
+    || !result
+    || isAutoExtracting
+    || !nombreDepositante.trim()
+    || !cedulaNumero.trim();
 
   return (
     <div className="w-full space-y-8">
@@ -101,8 +124,7 @@ export const ValidatePage = () => {
         <form onSubmit={handleSubmit} className="px-7 py-8 md:px-9">
           <SectionTitle
             eyebrow="Gestión de pagos"
-            title="Cargue el comprobante"
-            description="Adjunte el archivo para extraer automaticamente los datos del pago."
+            title="Validación de pago"
           />
 
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -139,7 +161,7 @@ export const ValidatePage = () => {
                     value={formatExtracted(result?.fields.banco_emisorIA)}
                   />
                   <ExtractedInput
-                    label="Codigo banco emisor"
+                    label="Código banco emisor"
                     value={formatExtracted(result?.fields.issuerBankIdIA)}
                   />
                 </div>
@@ -195,15 +217,15 @@ export const ValidatePage = () => {
               <div className="mt-5 flex flex-wrap gap-2">
                 <PrimaryButton
                   type="submit"
-                  disabled={!uploadedFile || isSubmitting || isAutoExtracting}
+                  disabled={isContinueDisabled}
                   className="w-full py-2.5 text-base"
                 >
-                  {isSubmitting ? 'Validando...' : 'Validar comprobante'}
+                  Continuar
                 </PrimaryButton>
                 <SecondaryButton
                   type="button"
                   onClick={handleClearAll}
-                  disabled={isSubmitting || isAutoExtracting || !uploadedFile}
+                  disabled={isAutoExtracting || !uploadedFile}
                   className="w-full"
                 >
                   Limpiar archivo
@@ -217,14 +239,7 @@ export const ValidatePage = () => {
                 />
               ) : null}
 
-              {isSubmitting ? (
-                <InlineProcessingState
-                  title="Validando datos del comprobante"
-                  message="Procesando extracción y validación con datos manuales del depositante..."
-                />
-              ) : null}
-
-              {!isAutoExtracting && !isSubmitting && result ? (
+              {!isAutoExtracting && result ? (
                 <div className="mt-4">
                   <ValidationResultView result={result} />
                 </div>

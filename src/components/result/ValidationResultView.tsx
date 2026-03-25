@@ -1,11 +1,16 @@
 import { useState } from 'react';
-import { formatDate } from '../../data/mockData';
 import type { ValidationResult } from '../../types/validation';
 import { StatusBadge } from '../ui/StatusBadge';
 
 interface ValidationResultViewProps {
   result: ValidationResult;
 }
+
+const formatDate = (value: string): string =>
+  new Date(value).toLocaleString('es-VE', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
 
 const displayValue = (value: string | number | null | undefined): string => {
   if (value === null || value === undefined || value === '') return 'No detectado';
@@ -84,8 +89,8 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
           <FieldCard label="Cuenta destino" value={displayValue(result.fields.CuentaBancariaIA)} />
           <FieldCard label="Banco destino" value={displayValue(result.fields.banco_destinoIA)} />
           <FieldCard label="Fecha" value={displayValue(result.fields.fechaIA)} />
-          <FieldCard label="Referencia completa detectada" value={displayValue(result.fields.rawReferenceIA)} />
-          <FieldCard label="Referencia normalizada (últimos 8)" value={displayValue(result.fields.CompletereferenciaIA)} />
+          <FieldCard label="Referencia detectada" value={displayValue(result.fields.rawReferenceIA)} />
+          <FieldCard label="Referencia normalizada" value={displayValue(result.fields.CompletereferenciaIA)} />
           <FieldCard label="Monto" value={displayValue(result.fields.montoIA)} />
         </div>
       </section>

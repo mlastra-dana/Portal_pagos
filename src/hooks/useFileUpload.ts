@@ -22,7 +22,7 @@ export const useFileUpload = () => {
 
   const setFile = (file: File | null) => {
     if (!file) {
-      setError('Selecciona un archivo de imagen o PDF para continuar.');
+      setError('Seleccione un archivo de imagen o PDF para continuar.');
       return;
     }
 
@@ -32,9 +32,9 @@ export const useFileUpload = () => {
       return;
     }
 
-    const maxSizeMb = 8;
+    const maxSizeMb = 12;
     if (file.size > maxSizeMb * 1024 * 1024) {
-      setError('El archivo excede el límite de 8 MB.');
+      setError('El archivo excede el límite de 12 MB.');
       return;
     }
 

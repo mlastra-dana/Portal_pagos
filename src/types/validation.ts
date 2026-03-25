@@ -68,10 +68,3 @@ export interface ValidationResult {
     resultKey?: string;
   };
 }
-
-export interface ValidationHistoryItem {
-  id: string;
-  createdAt: string;
-  fileName: string;
-  status: ValidationStatus;
-}

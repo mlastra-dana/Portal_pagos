@@ -1,7 +1,6 @@
-import { validationHistoryMock } from '../data/mockData';
 import { fileToBase64 } from './fileToBase64';
 import { extractReceiptWithLocalOcr } from './localOcrExtraction';
-import type { ExpectedData, ValidationHistoryItem, ValidationResult, ValidationStatus } from '../types/validation';
+import type { ExpectedData, ValidationResult, ValidationStatus } from '../types/validation';
 
 const API_URL = import.meta.env.VITE_VALIDATE_API_URL as string | undefined;
 const VALIDATION_MODE = (import.meta.env.VITE_VALIDATION_MODE as string | undefined)?.toLowerCase();
@@ -209,8 +208,4 @@ export const validateReceipt = async (file: File, expectedData?: ExpectedData): 
 
   const remoteResult = normalizeResult(data);
   return softenAutoStatus(remoteResult, expectedData);
-};
-
-export const getValidationHistory = async (): Promise<ValidationHistoryItem[]> => {
-  return validationHistoryMock;
 };

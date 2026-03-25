@@ -371,6 +371,25 @@ const extractTextFromPdf = async (file: File): Promise<{ text: string; confidenc
 };
 
 const extractCuentaDestino = (lines: string[]): string | null => {
+  const normalizeMaskedAccount = (value: string): string | null => {
+    const compact = value.replace(/[\s-]/g, '');
+
+    const withPrefix = compact.match(/(\d{4})[*xX•]{2,}(\d{3,})/);
+    if (withPrefix) {
+      const prefix = withPrefix[1];
+      const suffix = withPrefix[2];
+      return `${prefix}****${suffix.slice(-4)}`;
+    }
+
+    const starsAndDigits = compact.match(/[*xX•]{2,}(\d{3,})/);
+    if (starsAndDigits) {
+      const suffix = starsAndDigits[1];
+      return `****${suffix.slice(-4)}`;
+    }
+
+    return null;
+  };
+
   const target = findLabeledLineWithContext(lines, DESTINATION_LABELS);
   if (target) {
     const source = `${target.line} ${target.next}`.trim();
@@ -378,13 +397,8 @@ const extractCuentaDestino = (lines: string[]): string | null => {
     const fullAccount = source.match(/\b\d{20}\b/)?.[0];
     if (fullAccount) return fullAccount;
 
-    const masked = source.match(/\*\s*\d{3,}/)?.[0];
-    if (masked) {
-      const digits = cleanDigits(masked);
-      if (digits.length >= 4) return `****${digits.slice(-4)}`;
-      if (digits.length > 0) return `****${digits}`;
-      return null;
-    }
+    const normalizedMasked = normalizeMaskedAccount(source);
+    if (normalizedMasked) return normalizedMasked;
 
     const longToken = source.match(/(?:\d[\d\s-]{15,}\d)/)?.[0];
     if (longToken) {
@@ -402,6 +416,9 @@ const extractCuentaDestino = (lines: string[]): string | null => {
     if (!DESTINATION_LABELS.some((label) => nLine.includes(label))) continue;
 
     const source = `${line} ${lines[i + 1] ?? ''}`;
+    const normalizedMasked = normalizeMaskedAccount(source);
+    if (normalizedMasked) return normalizedMasked;
+
     const candidate = source.match(/[\d*][\d*\s-]{3,}/)?.[0];
     if (!candidate) continue;
 

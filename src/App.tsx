@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layouts/AppShell';
-import { HistoryPage } from './pages/HistoryPage';
+import { ComplementaryDocumentsPage } from './pages/ComplementaryDocumentsPage';
 import { HomePage } from './pages/HomePage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { ProcessingPage } from './pages/ProcessingPage';
@@ -13,9 +13,9 @@ const App = () => {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/validar" element={<ValidatePage />} />
+        <Route path="/documentos-complementarios" element={<ComplementaryDocumentsPage />} />
         <Route path="/procesando" element={<ProcessingPage />} />
         <Route path="/resultado" element={<ResultPage />} />
-        <Route path="/historial" element={<HistoryPage />} />
         <Route path="/home" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
