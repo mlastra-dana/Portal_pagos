@@ -571,15 +571,23 @@ const extractMonto = (lines: string[]): number | null => {
     if (parsed !== null) return parsed;
   }
 
+  const amountCandidates: number[] = [];
   for (const line of lines) {
     const nLine = normalizeText(line);
-    if (/comision|comisión|iva|impuesto/.test(nLine)) continue;
+    if (/comision|comisión|iva|impuesto|referenc|recibo|cuenta|codigo|codigo de cuenta|identificacion|identificación/.test(nLine)) continue;
 
-    const amountLike = line.match(/\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})\s*(?:bs|ves)?/i)?.[0];
+    const amountLike =
+      line.match(/(?:bs\.?|ves|\$)\s*\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})?/i)?.[0]
+      ?? line.match(/\b\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})\b/i)?.[0]
+      ?? line.match(/\b\d{4,}(?:,\d{2})\b/i)?.[0];
     if (!amountLike) continue;
 
     const parsed = parseMonto(amountLike);
-    if (parsed !== null && parsed > 0) return parsed;
+    if (parsed !== null && parsed > 0) amountCandidates.push(parsed);
+  }
+
+  if (amountCandidates.length > 0) {
+    return Math.max(...amountCandidates);
   }
 
   return null;

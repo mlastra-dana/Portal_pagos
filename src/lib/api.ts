@@ -79,8 +79,57 @@ const normalizeReference = (value: string | undefined): string | null => {
   return digits.slice(-8);
 };
 
-const simulateLocalValidation = async (file: File, expectedData?: ExpectedData): Promise<ValidationResult> => {
-  const localExtraction = await extractReceiptWithLocalOcr(file);
+type LocalExtraction = Awaited<ReturnType<typeof extractReceiptWithLocalOcr>>;
+
+const validateDocumentAdmission = (localExtraction: LocalExtraction): void => {
+  const text = (localExtraction.rawText ?? '').trim();
+  const normalized = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  const hasDateStructure = /\b\d{1,2}[\/\-\.]\d{1,2}[\/\-\.](?:\d{2}|\d{4})\b/.test(text);
+  const hasAmountStructure =
+    /\b\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})\b/.test(text)
+    || /(?:bs\.?|ves|\$)\s*\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})?/i.test(text)
+    || /\b\d{4,}(?:,\d{2})\b/.test(text);
+  const hasBankAccountStructure = /\b\d{20}\b/.test(text) || /\b\d{4}[*xX•._,·]{2,}\d{3,}\b/.test(text);
+  const hasReferenceStructure =
+    (/(?:n\s*[°ºo]?\s*de\s*recibo|numero\s*de\s*recibo|nro\.?\s*de\s*recibo|referenc|ref\b)/i.test(normalized)
+      && /\d{6,}/.test(text));
+
+  const structuralScore = [
+    hasDateStructure,
+    hasAmountStructure,
+    hasBankAccountStructure,
+    hasReferenceStructure,
+  ].filter(Boolean).length;
+
+  const extracted = localExtraction.fields;
+  const extractedCoreFields = [
+    extracted.CuentaBancariaIA,
+    extracted.montoIA,
+    extracted.fechaIA,
+    extracted.rawReferenceIA ?? extracted.CompletereferenciaIA,
+    extracted.banco_emisorIA,
+  ].filter((value) => value !== null && value !== undefined && String(value).trim() !== '').length;
+
+  if (!text || text.length < 40) {
+    throw new Error('El comprobante no es legible. Carga una imagen o PDF nítido donde se vea el texto.');
+  }
+
+  if (structuralScore < 2) {
+    throw new Error('El archivo no cumple estructura de comprobante venezolano (fecha, monto, cuenta, referencia).');
+  }
+
+  if (localExtraction.confidence < 0.45 && (extractedCoreFields < 2 || structuralScore < 3)) {
+    throw new Error('La calidad del comprobante es insuficiente. Sube una versión más nítida y completa.');
+  }
+};
+
+const simulateLocalValidation = async (
+  file: File,
+  expectedData?: ExpectedData,
+  preExtracted?: LocalExtraction,
+): Promise<ValidationResult> => {
+  const localExtraction = preExtracted ?? await extractReceiptWithLocalOcr(file);
   const extracted = localExtraction.fields;
   const hasManualValidationInput = Boolean(
     expectedData?.nombreDepositante?.trim() || expectedData?.cedulaDepositante?.trim(),
@@ -175,8 +224,11 @@ const simulateLocalValidation = async (file: File, expectedData?: ExpectedData):
 };
 
 export const validateReceipt = async (file: File, expectedData?: ExpectedData): Promise<ValidationResult> => {
+  const admissionExtraction = await extractReceiptWithLocalOcr(file);
+  validateDocumentAdmission(admissionExtraction);
+
   if (!USE_REMOTE_API) {
-    const localResult = await simulateLocalValidation(file, expectedData);
+    const localResult = await simulateLocalValidation(file, expectedData, admissionExtraction);
     return softenAutoStatus(localResult, expectedData);
   }
 
