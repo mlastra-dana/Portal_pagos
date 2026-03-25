@@ -60,8 +60,7 @@ const normalizeResult = (raw: unknown): ValidationResult => {
 const normalizeReference = (value: string | undefined): string | null => {
   if (!value) return null;
   const digits = value.replace(/\D/g, '');
-  if (!digits) return null;
-  return digits.length <= 8 ? digits : digits.slice(-8);
+  return digits || null;
 };
 
 const simulateLocalValidation = async (file: File, expectedData?: ExpectedData): Promise<ValidationResult> => {
@@ -77,13 +76,13 @@ const simulateLocalValidation = async (file: File, expectedData?: ExpectedData):
   const issues: string[] = [];
 
   if (!fechaIA) {
-    issues.push('No se pudo extraer fecha de forma confiable.');
+    issues.push('No se pudo extraer fecha de forma confiable del documento.');
   }
   if (!completeReference) {
-    issues.push('No se pudo extraer la referencia completa.');
+    issues.push('No se pudo extraer la referencia completa del documento.');
   }
   if (!CuentaBancariaIA) {
-    issues.push('No se pudo extraer la cuenta destino.');
+    issues.push('No se pudo extraer la cuenta destino del documento.');
   }
 
   const status: ValidationStatus = issues.length === 0 ? 'APPROVED' : issues.length <= 2 ? 'OBSERVED' : 'REJECTED';

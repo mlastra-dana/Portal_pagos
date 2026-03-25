@@ -63,7 +63,11 @@ npm run preview
 ## Estructura relevante
 
 ```text
+prompts/
+  main_extraction.prompt.txt
+  issuer_extraction.prompt.txt
 src/
+  config/idpRules.ts
   components/result/ValidationResultView.tsx
   components/ui/UploadDropzone.tsx
   hooks/useFileUpload.ts
@@ -72,6 +76,9 @@ src/
   pages/ValidatePage.tsx
   types/validation.ts
 ```
+
+Los archivos en `prompts/` documentan la estructura objetivo del JSON y las reglas de extracción.
+`src/config/idpRules.ts` centraliza reglas que usa el IDP frontend (OCR local).
 
 ## Despliegue en AWS Amplify Hosting
 

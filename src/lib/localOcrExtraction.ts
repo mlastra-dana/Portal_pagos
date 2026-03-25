@@ -1,5 +1,7 @@
 import Tesseract from 'tesseract.js';
+import { BANK_CODE_MAP, DESTINATION_LABELS, ORIGIN_EXCLUDED_LABELS, REFERENCE_LABELS_PRIORITY } from '../config/idpRules';
 import type { ValidationFields } from '../types/validation';
+import * as pdfjsLib from 'pdfjs-dist';
 
 interface LocalOcrExtractionResult {
   fields: ValidationFields;
@@ -8,6 +10,21 @@ interface LocalOcrExtractionResult {
   rawText: string;
   detectionStrategy: string;
 }
+
+let pdfWorkerConfigured = false;
+
+const ensurePdfWorker = () => {
+  if (pdfWorkerConfigured) return;
+  try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+      'pdfjs-dist/build/pdf.worker.min.mjs',
+      import.meta.url,
+    ).toString();
+    pdfWorkerConfigured = true;
+  } catch {
+    pdfWorkerConfigured = true;
+  }
+};
 
 const stripAccents = (value: string): string =>
   value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -31,36 +48,6 @@ const monthMap: Record<string, number> = {
   oct: 10, octubre: 10,
   nov: 11, noviembre: 11,
   dic: 12, diciembre: 12,
-};
-
-const bankCodeMap: Record<string, { name: string; id: string }> = {
-  '0102': { name: 'Banco de Venezuela', id: '102' },
-  '0104': { name: 'Venezolano de Credito', id: '104' },
-  '0105': { name: 'Mercantil Banco', id: '105' },
-  '0108': { name: 'Banco Provincial', id: '108' },
-  '0114': { name: 'Bancaribe', id: '114' },
-  '0115': { name: 'Banco Exterior', id: '115' },
-  '0128': { name: 'Banco Caroni', id: '128' },
-  '0134': { name: 'Banesco', id: '134' },
-  '0137': { name: 'Banco Sofitasa', id: '137' },
-  '0138': { name: 'Banco Plaza', id: '138' },
-  '0146': { name: 'Bangente C.A', id: '146' },
-  '0151': { name: 'BFC Banco Fondo Comun', id: '151' },
-  '0156': { name: '100% Banco', id: '156' },
-  '0157': { name: 'DelSur Banco Universal', id: '157' },
-  '0163': { name: 'Banco del Tesoro', id: '163' },
-  '0166': { name: 'Banco Agricola de Venezuela', id: '166' },
-  '0168': { name: 'Bancrecer, Banco Microfinanciero', id: '168' },
-  '0169': { name: 'R4, Banco Microfinanciero', id: '169' },
-  '0171': { name: 'Banco Activo', id: '171' },
-  '0172': { name: 'Bancamiga', id: '172' },
-  '0173': { name: 'Banco Internacional de Desarrollo', id: '173' },
-  '0174': { name: 'Banplus Banco Universal', id: '174' },
-  '0175': { name: 'Banco Digital de Los Trabajadores', id: '175' },
-  '0177': { name: 'Banco de la Fuerza Armada Nacional Bolivariana', id: '177' },
-  '0178': { name: 'N58 Banco Digital', id: '178' },
-  '0191': { name: 'Banco Nacional de Credito', id: '191' },
-  '0601': { name: 'Instituto Municipal de Credito Popular', id: '601' },
 };
 
 const bankKeywords: Array<{ pattern: RegExp; name: string; id: string | 'No Aplica' }> = [
@@ -201,6 +188,40 @@ const preprocessImageForOcr = async (file: File, variant: 'original' | 'high_con
   return blob ?? file;
 };
 
+const preprocessBlobImageForOcr = async (blob: Blob, variant: 'original' | 'high_contrast'): Promise<Blob> => {
+  if (variant === 'original') return blob;
+
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement('canvas');
+  const scale = 1.8;
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return blob;
+
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+
+    let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+    gray = gray > 160 ? 255 : Math.max(0, gray - 40);
+
+    data[i] = gray;
+    data[i + 1] = gray;
+    data[i + 2] = gray;
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+  const processed = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+  return processed ?? blob;
+};
+
 const runOcrBestPass = async (file: File): Promise<{ text: string; confidence: number }> => {
   const variants: Array<'original' | 'high_contrast'> = ['original', 'high_contrast'];
 
@@ -226,11 +247,124 @@ const runOcrBestPass = async (file: File): Promise<{ text: string; confidence: n
   };
 };
 
-const extractCuentaDestino = (lines: string[]): string | null => {
-  const positive = ['a la cuenta', 'cuenta abonada', 'cuenta destino', 'beneficiario', 'a cuenta', 'destino'];
-  const negative = ['desde mi cuenta', 'cuenta de origen', 'cuenta a debitar', 'ordenante', 'debito'];
+const runOcrBestPassFromBlob = async (blob: Blob): Promise<{ text: string; confidence: number }> => {
+  const variants: Array<'original' | 'high_contrast'> = ['original', 'high_contrast'];
 
-  const target = findLabeledLineWithContext(lines, ['cuenta destino', 'a la cuenta', 'cuenta abonada', 'beneficiario', 'destino']);
+  let bestText = '';
+  let bestConfidence = -1;
+
+  for (const variant of variants) {
+    const source = await preprocessBlobImageForOcr(blob, variant);
+    const pass = await Tesseract.recognize(source, 'spa+eng');
+    const text = pass.data.text ?? '';
+    const confidence = Number(pass.data.confidence ?? 0);
+
+    if (confidence > bestConfidence && text.trim().length > 0) {
+      bestConfidence = confidence;
+      bestText = text;
+    }
+  }
+
+  return {
+    text: bestText,
+    confidence: bestConfidence > 0 ? Math.min(0.95, bestConfidence / 100) : 0.55,
+  };
+};
+
+const extractTextFromPdf = async (file: File): Promise<{ text: string; confidence: number; note: string }> => {
+  try {
+    ensurePdfWorker();
+    const arrayBuffer = await file.arrayBuffer();
+
+    // Try with worker first; if worker fails in local env, retry with disableWorker.
+    let pdf: Awaited<ReturnType<(typeof pdfjsLib)['getDocument']>['promise']>;
+    try {
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      pdf = await loadingTask.promise;
+    } catch {
+      const loadingTaskNoWorker = pdfjsLib.getDocument({ data: arrayBuffer, disableWorker: true } as any);
+      pdf = await loadingTaskNoWorker.promise;
+    }
+
+    // 1) First try embedded/selectable text on first pages.
+    let embeddedText = '';
+    const pagesToRead = Math.min(pdf.numPages, 3);
+    for (let pageNum = 1; pageNum <= pagesToRead; pageNum += 1) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item) => ('str' in item ? item.str : ''))
+        .join(' ')
+        .trim();
+      if (pageText.length > 0) embeddedText += ` ${pageText}`;
+    }
+    embeddedText = embeddedText.trim();
+
+    if (embeddedText.length >= 60) {
+      return {
+        text: embeddedText,
+        confidence: 0.9,
+        note: 'Extracción PDF por texto embebido.',
+      };
+    }
+
+    // 2) OCR fallback on up to first 2 pages.
+    const ocrPageCount = Math.min(pdf.numPages, 2);
+    let ocrText = '';
+    let confidenceAcc = 0;
+    let validPasses = 0;
+
+    for (let pageNum = 1; pageNum <= ocrPageCount; pageNum += 1) {
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 2.6 });
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) continue;
+
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+
+      await page.render({
+        canvas,
+        canvasContext: ctx,
+        viewport,
+      }).promise;
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) continue;
+
+      const ocr = await runOcrBestPassFromBlob(blob);
+      if (ocr.text.trim().length > 0) {
+        ocrText += `\n${ocr.text}`;
+        confidenceAcc += ocr.confidence;
+        validPasses += 1;
+      }
+    }
+
+    if (ocrText.trim().length > 0) {
+      return {
+        text: ocrText.trim(),
+        confidence: validPasses > 0 ? confidenceAcc / validPasses : 0.6,
+        note: 'Extracción PDF por OCR de páginas renderizadas.',
+      };
+    }
+
+    return {
+      text: '',
+      confidence: 0,
+      note: 'No se detectó texto legible en el PDF.',
+    };
+  } catch (error) {
+    return {
+      text: '',
+      confidence: 0,
+      note: `Fallo en extracción PDF: ${error instanceof Error ? error.message : 'error desconocido'}`,
+    };
+  }
+};
+
+const extractCuentaDestino = (lines: string[]): string | null => {
+  const target = findLabeledLineWithContext(lines, DESTINATION_LABELS);
   if (target) {
     const source = `${target.line} ${target.next}`.trim();
 
@@ -240,7 +374,9 @@ const extractCuentaDestino = (lines: string[]): string | null => {
     const masked = source.match(/\*\s*\d{3,}/)?.[0];
     if (masked) {
       const digits = cleanDigits(masked);
-      return digits.length > 0 ? digits : null;
+      if (digits.length >= 4) return `****${digits.slice(-4)}`;
+      if (digits.length > 0) return `****${digits}`;
+      return null;
     }
 
     const longToken = source.match(/(?:\d[\d\s-]{15,}\d)/)?.[0];
@@ -255,8 +391,8 @@ const extractCuentaDestino = (lines: string[]): string | null => {
     const line = lines[i];
     const nLine = normalizeText(line);
 
-    if (negative.some((label) => nLine.includes(label))) continue;
-    if (!positive.some((label) => nLine.includes(label))) continue;
+    if (ORIGIN_EXCLUDED_LABELS.some((label) => nLine.includes(label))) continue;
+    if (!DESTINATION_LABELS.some((label) => nLine.includes(label))) continue;
 
     const source = `${line} ${lines[i + 1] ?? ''}`;
     const candidate = source.match(/[\d*][\d*\s-]{3,}/)?.[0];
@@ -265,9 +401,14 @@ const extractCuentaDestino = (lines: string[]): string | null => {
     const raw = candidate.trim();
     const onlyDigits = cleanDigits(raw);
     const isPureNumeric = /^[\d\s-]+$/.test(raw);
+    const hasMask = raw.includes('*');
 
     if (isPureNumeric && onlyDigits.length < 20) return null;
     if (onlyDigits.length === 0) return null;
+    if (hasMask) {
+      if (onlyDigits.length >= 4) return `****${onlyDigits.slice(-4)}`;
+      return `****${onlyDigits}`;
+    }
     return onlyDigits;
   }
 
@@ -276,28 +417,37 @@ const extractCuentaDestino = (lines: string[]): string | null => {
 };
 
 const extractReferencia = (lines: string[], fechaIA: string | null, montoIA: number | null): string | null => {
-  const labelsPriority = [
-    'referencia interbancaria',
-    'referencia',
-    'numero de referencia',
-    'numero de identificacion',
-    'operacion',
-    'ref',
-    'n de recibo',
-    'documento',
-    'confirmacion',
-  ];
-
-  for (const label of labelsPriority) {
+  for (const label of REFERENCE_LABELS_PRIORITY) {
     const raw = findLabeledValue(lines, [label]);
     if (!raw) continue;
     const digits = cleanDigits(raw);
-    if (!digits) continue;
+    if (!digits || digits.length < 6) continue;
 
     if (fechaIA && digits.includes(fechaIA.replace(/\D/g, ''))) continue;
     if (montoIA !== null && digits === String(Math.round(montoIA))) continue;
     return digits;
   }
+
+  // Fallback dirigido: busca número largo en líneas cercanas a etiquetas de referencia.
+  for (let i = 0; i < lines.length; i += 1) {
+    const normalized = normalizeText(lines[i]);
+    if (!/(ref|referenc|operac|documento|confirmacion|recibo)/.test(normalized)) continue;
+
+    const window = `${lines[i]} ${lines[i + 1] ?? ''} ${lines[i + 2] ?? ''}`;
+    const candidate = window.match(/\d[\d\s.-]{5,}\d/g)?.map((item) => cleanDigits(item)).find((d) => d.length >= 6);
+    if (!candidate) continue;
+
+    if (fechaIA && candidate.includes(fechaIA.replace(/\D/g, ''))) continue;
+    if (montoIA !== null && candidate === String(Math.round(montoIA))) continue;
+    return candidate;
+  }
+
+  // Fallback especial Mercantil/Banesco: referencias suelen iniciar en 00255 y ser largas.
+  const mercantilLike = lines
+    .flatMap((line) => line.match(/\b00\d{8,20}\b/g) ?? [])
+    .map((value) => cleanDigits(value))
+    .find((digits) => digits.length >= 10);
+  if (mercantilLike) return mercantilLike;
 
   return null;
 };
@@ -324,7 +474,7 @@ const inferIssuerFromPromptRules = (
   if (originCandidate) {
     const digits = cleanDigits(originCandidate);
     const prefix4 = digits.slice(0, 4);
-    const bank = bankCodeMap[prefix4];
+    const bank = BANK_CODE_MAP[prefix4];
     if (bank) {
       return { banco: bank.name, id: bank.id, strategy: 'origin_account_prefix' };
     }
@@ -371,12 +521,24 @@ const extractNullResult = (rawText: string, note: string): LocalOcrExtractionRes
 };
 
 export const extractReceiptWithLocalOcr = async (file: File): Promise<LocalOcrExtractionResult> => {
-  if (!file.type.startsWith('image/')) {
-    return extractNullResult('', 'OCR local estricto disponible solo para imagenes. En este archivo se devolvieron campos null.');
+  let rawText = '';
+  let extractionConfidence = 0;
+  let extractionNote = '';
+
+  if (file.type === 'application/pdf') {
+    const pdfExtraction = await extractTextFromPdf(file);
+    rawText = pdfExtraction.text;
+    extractionConfidence = pdfExtraction.confidence;
+    extractionNote = pdfExtraction.note;
+  } else if (file.type.startsWith('image/')) {
+    const ocr = await runOcrBestPass(file);
+    rawText = ocr.text ?? '';
+    extractionConfidence = ocr.confidence;
+    extractionNote = 'Extracción por OCR de imagen.';
+  } else {
+    return extractNullResult('', 'Formato no soportado para OCR local.');
   }
 
-  const ocr = await runOcrBestPass(file);
-  const rawText = ocr.text ?? '';
   const lines = rawText
     .split('\n')
     .map((line) => line.trim())
@@ -413,8 +575,11 @@ export const extractReceiptWithLocalOcr = async (file: File): Promise<LocalOcrEx
       banco_emisorIA: bancoEmisor,
       issuerBankIdIA: issuerId,
     },
-    notes: ['Extraccion local con OCR (tesseract.js) y reglas estrictas. Si un dato no es claro, se devuelve null.'],
-    confidence: ocr.confidence,
+    notes: [
+      extractionNote || 'Extracción local con OCR y reglas estrictas.',
+      'Si un dato no es claro, se devuelve null.',
+    ],
+    confidence: extractionConfidence || 0.6,
     rawText,
     detectionStrategy: issuer.strategy,
   };
