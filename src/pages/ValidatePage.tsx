@@ -154,7 +154,7 @@ export const ValidatePage = () => {
                   />
                   <ExtractedInput
                     label="Referencia"
-                    value={formatExtracted(result?.fields.CompletereferenciaIA ?? result?.fields.rawReferenceIA)}
+                    value={formatReference8(result?.fields.CompletereferenciaIA ?? result?.fields.rawReferenceIA)}
                   />
                   <ExtractedInput
                     label="Banco emisor"
@@ -268,6 +268,13 @@ const ExtractedInput = ({ label, value }: { label: string; value: string }) => (
 const formatExtracted = (value: string | number | null | undefined): string => {
   if (value === null || value === undefined || value === '') return '';
   return String(value);
+};
+
+const formatReference8 = (value: string | null | undefined): string => {
+  if (!value) return '';
+  const digits = value.replace(/\D/g, '');
+  if (digits.length < 8) return '';
+  return digits.slice(-8);
 };
 
 const InlineProcessingState = ({ title, message }: { title: string; message: string }) => (

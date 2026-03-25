@@ -15,6 +15,8 @@ export const DESTINATION_LABELS = [
   'a la cuenta',
   'cuenta abonada',
   'cuenta destino',
+  'cuenta credito',
+  'cuenta crédito',
   'cuenta a acreditar',
   'cuenta acreditada',
   'cuenta beneficiario',

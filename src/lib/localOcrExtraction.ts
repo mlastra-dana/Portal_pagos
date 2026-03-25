@@ -57,6 +57,7 @@ const bankKeywords: Array<{ pattern: RegExp; name: string; id: string | 'No Apli
   { pattern: /paypal/i, name: 'PayPal', id: 'No Aplica' },
   { pattern: /binance/i, name: 'Binance', id: 'No Aplica' },
   { pattern: /zelle/i, name: 'Zelle', id: 'No Aplica' },
+  { pattern: /banesco/i, name: 'Banesco', id: '134' },
   { pattern: /banco provincial|bbva provincial|provincial/i, name: 'Banco Provincial', id: '108' },
   { pattern: /mercantil/i, name: 'Mercantil Banco', id: '105' },
   { pattern: /banco de venezuela|bdv/i, name: 'Banco de Venezuela', id: '102' },
@@ -149,6 +150,37 @@ const findLabeledLineWithContext = (lines: string[], labels: string[]): { line: 
     };
   }
   return null;
+};
+
+const getIssuerHeaderText = (lines: string[]): string => {
+  // El emisor suele aparecer en el encabezado superior.
+  // Reducimos la ventana para evitar mezclar texto de beneficiario.
+  return lines.slice(0, 4).join('\n');
+};
+
+const getStrongIssuerEvidenceText = (lines: string[]): string => {
+  const issuerLabels = [
+    'banco emisor',
+    'emisor',
+    'origen',
+    'cuenta de origen',
+    'cuenta a debitar',
+    'debito',
+    'desde mi cuenta',
+    'ordenante',
+  ];
+
+  const captured: string[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const normalized = normalizeText(line);
+    if (!issuerLabels.some((label) => normalized.includes(label))) continue;
+
+    captured.push(line);
+    if (lines[i + 1]) captured.push(lines[i + 1]);
+  }
+
+  return captured.join('\n');
 };
 
 const preprocessImageForOcr = async (file: File, variant: 'original' | 'high_contrast'): Promise<File | Blob> => {
@@ -373,15 +405,16 @@ const extractTextFromPdf = async (file: File): Promise<{ text: string; confidenc
 const extractCuentaDestino = (lines: string[]): string | null => {
   const normalizeMaskedAccount = (value: string): string | null => {
     const compact = value.replace(/[\s-]/g, '');
+    const maskChars = '[*xX•._,·]+';
 
-    const withPrefix = compact.match(/(\d{4})[*xX•]{2,}(\d{3,})/);
+    const withPrefix = compact.match(new RegExp(`(\\d{4})${maskChars}(\\d{3,})`));
     if (withPrefix) {
       const prefix = withPrefix[1];
       const suffix = withPrefix[2];
       return `${prefix}****${suffix.slice(-4)}`;
     }
 
-    const starsAndDigits = compact.match(/[*xX•]{2,}(\d{3,})/);
+    const starsAndDigits = compact.match(new RegExp(`${maskChars}(\\d{3,})`));
     if (starsAndDigits) {
       const suffix = starsAndDigits[1];
       return `****${suffix.slice(-4)}`;
@@ -392,7 +425,8 @@ const extractCuentaDestino = (lines: string[]): string | null => {
 
   const target = findLabeledLineWithContext(lines, DESTINATION_LABELS);
   if (target) {
-    const source = `${target.line} ${target.next}`.trim();
+    const targetIndex = lines.findIndex((line) => line === target.line);
+    const source = `${target.line} ${target.next} ${targetIndex >= 0 ? lines[targetIndex + 2] ?? '' : ''}`.trim();
 
     const fullAccount = source.match(/\b\d{20}\b/)?.[0];
     if (fullAccount) return fullAccount;
@@ -400,7 +434,7 @@ const extractCuentaDestino = (lines: string[]): string | null => {
     const normalizedMasked = normalizeMaskedAccount(source);
     if (normalizedMasked) return normalizedMasked;
 
-    const longToken = source.match(/(?:\d[\d\s-]{15,}\d)/)?.[0];
+    const longToken = source.match(/(?:\d[\d\s\-._,·]{15,}\d)/)?.[0];
     if (longToken) {
       const digits = cleanDigits(longToken);
       if (digits.length >= 20) return digits;
@@ -415,17 +449,17 @@ const extractCuentaDestino = (lines: string[]): string | null => {
     if (ORIGIN_EXCLUDED_LABELS.some((label) => nLine.includes(label))) continue;
     if (!DESTINATION_LABELS.some((label) => nLine.includes(label))) continue;
 
-    const source = `${line} ${lines[i + 1] ?? ''}`;
+    const source = `${line} ${lines[i + 1] ?? ''} ${lines[i + 2] ?? ''}`;
     const normalizedMasked = normalizeMaskedAccount(source);
     if (normalizedMasked) return normalizedMasked;
 
-    const candidate = source.match(/[\d*][\d*\s-]{3,}/)?.[0];
+    const candidate = source.match(/[\d*xX•][\d*xX•\s\-._,·]{3,}/)?.[0];
     if (!candidate) continue;
 
     const raw = candidate.trim();
     const onlyDigits = cleanDigits(raw);
-    const isPureNumeric = /^[\d\s-]+$/.test(raw);
-    const hasMask = raw.includes('*');
+    const isPureNumeric = /^[\d\s\-._,·]+$/.test(raw);
+    const hasMask = /[*xX•._,·]/.test(raw);
 
     if (isPureNumeric && onlyDigits.length < 20) return null;
     if (onlyDigits.length === 0) return null;
@@ -436,8 +470,16 @@ const extractCuentaDestino = (lines: string[]): string | null => {
     return onlyDigits;
   }
 
-  const fallback = lines.join(' ').match(/\b\d{20}\b/)?.[0];
-  return fallback ?? null;
+  const strictFallback = lines.join(' ').match(/\b\d{20}\b/)?.[0];
+  if (strictFallback) return strictFallback;
+
+  const relaxedFallback = lines
+    .join(' ')
+    .match(/\d[\d\s\-._,·]{18,}\d/g)
+    ?.map((chunk) => cleanDigits(chunk))
+    .find((digits) => digits.length >= 20);
+
+  return relaxedFallback ?? null;
 };
 
 const extractReferencia = (lines: string[], fechaIA: string | null, montoIA: number | null): string | null => {
@@ -486,6 +528,17 @@ const extractMonto = (lines: string[]): number | null => {
     if (parsed !== null) return parsed;
   }
 
+  for (const line of lines) {
+    const nLine = normalizeText(line);
+    if (/comision|comisión|iva|impuesto/.test(nLine)) continue;
+
+    const amountLike = line.match(/\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})\s*(?:bs|ves)?/i)?.[0];
+    if (!amountLike) continue;
+
+    const parsed = parseMonto(amountLike);
+    if (parsed !== null && parsed > 0) return parsed;
+  }
+
   return null;
 };
 
@@ -494,6 +547,15 @@ const inferIssuerFromPromptRules = (
   lines: string[],
   referencia: string | null,
 ): { banco: string | null; id: string | null; strategy: string } => {
+  const headerText = getIssuerHeaderText(lines);
+  const issuerEvidenceText = getStrongIssuerEvidenceText(lines);
+  const strongIssuerText = `${headerText}\n${issuerEvidenceText}`;
+
+  const headerByName = bankKeywords.find((entry) => entry.id !== 'No Aplica' && entry.pattern.test(headerText));
+  if (headerByName) {
+    return { banco: headerByName.name, id: headerByName.id, strategy: 'header_top_lines_match' };
+  }
+
   const originCandidate = findLabeledValue(lines, ['cuenta de origen', 'cuenta a debitar', 'debito']);
   if (originCandidate) {
     const digits = cleanDigits(originCandidate);
@@ -504,11 +566,12 @@ const inferIssuerFromPromptRules = (
     }
   }
 
-  if ((referencia && referencia.startsWith('00255')) || /listo/i.test(text)) {
+  const mercantilTextEvidence = /mercantil/i.test(strongIssuerText);
+  if ((referencia && referencia.startsWith('00255') && mercantilTextEvidence) || /listo/i.test(strongIssuerText)) {
     return { banco: 'Mercantil Banco', id: '105', strategy: 'mercantil_unique_pattern' };
   }
 
-  if (/provincial|bbva/i.test(text) || /\b\d{1,2}\s+(ene|feb|mar|abr|may|jun|jul|ago|sep|set|oct|nov|dic)\b(?!\s+20\d{2})/i.test(text)) {
+  if (/provincial|bbva/i.test(strongIssuerText)) {
     return { banco: 'Banco Provincial', id: '108', strategy: 'provincial_visual_pattern' };
   }
 
@@ -517,9 +580,11 @@ const inferIssuerFromPromptRules = (
     return { banco: international.name, id: 'No Aplica', strategy: 'international_exception' };
   }
 
-  const localByName = bankKeywords.find((entry) => entry.id !== 'No Aplica' && entry.pattern.test(text));
+  const localByName = bankKeywords.find(
+    (entry) => entry.id !== 'No Aplica' && entry.pattern.test(strongIssuerText),
+  );
   if (localByName) {
-    return { banco: localByName.name, id: localByName.id, strategy: 'header_text_match' };
+    return { banco: localByName.name, id: localByName.id, strategy: 'issuer_header_or_origin_evidence' };
   }
 
   return { banco: 'Otros Bancos', id: null, strategy: 'fallback_other' };

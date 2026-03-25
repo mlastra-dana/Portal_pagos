@@ -24,8 +24,16 @@ const issueStyle = (status: ValidationResult['status']): string => {
   return 'border-border bg-bg';
 };
 
+const toReference8 = (value: string | null | undefined): string | null => {
+  if (!value) return null;
+  const digits = value.replace(/\D/g, '');
+  if (digits.length < 8) return null;
+  return digits.slice(-8);
+};
+
 export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
   const [copied, setCopied] = useState(false);
+  const reference8 = toReference8(result.fields.CompletereferenciaIA ?? result.fields.rawReferenceIA);
   const statusDescription: Record<ValidationResult['status'], string> = {
     APPROVED: 'Pago validado correctamente.',
     OBSERVED: 'Pago en revisión. Verifique los datos extraídos.',
@@ -89,8 +97,7 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
           <FieldCard label="Cuenta destino" value={displayValue(result.fields.CuentaBancariaIA)} />
           <FieldCard label="Banco destino" value={displayValue(result.fields.banco_destinoIA)} />
           <FieldCard label="Fecha" value={displayValue(result.fields.fechaIA)} />
-          <FieldCard label="Referencia detectada" value={displayValue(result.fields.rawReferenceIA)} />
-          <FieldCard label="Referencia normalizada" value={displayValue(result.fields.CompletereferenciaIA)} />
+          <FieldCard label="Referencia" value={displayValue(reference8)} />
           <FieldCard label="Monto" value={displayValue(result.fields.montoIA)} />
         </div>
       </section>
