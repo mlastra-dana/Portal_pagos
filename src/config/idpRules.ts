@@ -29,6 +29,9 @@ export const ORIGIN_EXCLUDED_LABELS = [
   'desde mi cuenta',
   'cuenta de origen',
   'cuenta a debitar',
+  'cuenta cliente debitada',
+  'cuenta debitada',
+  'debitada',
   'ordenante',
   'debito',
 ];

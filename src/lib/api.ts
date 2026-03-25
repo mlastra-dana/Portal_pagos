@@ -75,7 +75,8 @@ const softenAutoStatus = (result: ValidationResult, expectedData?: ExpectedData)
 const normalizeReference = (value: string | undefined): string | null => {
   if (!value) return null;
   const digits = value.replace(/\D/g, '');
-  return digits || null;
+  if (digits.length < 8) return null;
+  return digits.slice(-8);
 };
 
 const simulateLocalValidation = async (file: File, expectedData?: ExpectedData): Promise<ValidationResult> => {

@@ -403,6 +403,17 @@ const extractTextFromPdf = async (file: File): Promise<{ text: string; confidenc
 };
 
 const extractCuentaDestino = (lines: string[]): string | null => {
+  const STRICT_DESTINATION_LABELS = [
+    'cuenta transferida',
+    'codigo cuenta cliente transferida',
+    'código cuenta cliente transferida',
+    'cuenta credito',
+    'cuenta crédito',
+    'cuenta a acreditar',
+    'cuenta acreditada',
+    'cuenta destino',
+  ];
+
   const normalizeMaskedAccount = (value: string): string | null => {
     const compact = value.replace(/[\s-]/g, '');
     const maskChars = '[*xX•._,·]+';
@@ -423,8 +434,10 @@ const extractCuentaDestino = (lines: string[]): string | null => {
     return null;
   };
 
-  const target = findLabeledLineWithContext(lines, DESTINATION_LABELS);
-  if (target) {
+  const tryExtractFromLabeledContext = (labels: string[]): string | null => {
+    const target = findLabeledLineWithContext(lines, labels);
+    if (!target) return null;
+
     const targetIndex = lines.findIndex((line) => line === target.line);
     const source = `${target.line} ${target.next} ${targetIndex >= 0 ? lines[targetIndex + 2] ?? '' : ''}`.trim();
 
@@ -440,7 +453,14 @@ const extractCuentaDestino = (lines: string[]): string | null => {
       if (digits.length >= 20) return digits;
       return null;
     }
-  }
+    return null;
+  };
+
+  const strictAccount = tryExtractFromLabeledContext(STRICT_DESTINATION_LABELS);
+  if (strictAccount) return strictAccount;
+
+  const genericAccount = tryExtractFromLabeledContext(DESTINATION_LABELS);
+  if (genericAccount) return genericAccount;
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
@@ -483,15 +503,38 @@ const extractCuentaDestino = (lines: string[]): string | null => {
 };
 
 const extractReferencia = (lines: string[], fechaIA: string | null, montoIA: number | null): string | null => {
+  const fechaDigits = fechaIA?.replace(/\D/g, '') ?? '';
+  const montoDigits = montoIA !== null ? String(Math.round(montoIA)) : '';
+  const isLikelyInvalidReference = (digits: string, context: string): boolean => {
+    if (digits.length < 8) return true;
+    if (fechaDigits && digits.includes(fechaDigits)) return true;
+    if (montoDigits && digits === montoDigits) return true;
+    if (/(rif|c\.?i|identificacion|identificación)/i.test(context) && digits.length <= 10) return true;
+    return false;
+  };
+
   for (const label of REFERENCE_LABELS_PRIORITY) {
     const raw = findLabeledValue(lines, [label]);
     if (!raw) continue;
     const digits = cleanDigits(raw);
-    if (!digits || digits.length < 6) continue;
-
-    if (fechaIA && digits.includes(fechaIA.replace(/\D/g, ''))) continue;
-    if (montoIA !== null && digits === String(Math.round(montoIA))) continue;
+    if (!digits || isLikelyInvalidReference(digits, raw)) continue;
     return digits;
+  }
+
+  // Caso común Banesco: "N° de recibo" puede venir con variaciones OCR.
+  for (let i = 0; i < lines.length; i += 1) {
+    const normalized = normalizeText(lines[i]);
+    if (!/recib/.test(normalized)) continue;
+
+    const window = `${lines[i]} ${lines[i + 1] ?? ''} ${lines[i + 2] ?? ''}`;
+    const candidates = window
+      .match(/\d[\d\s.-]{6,}\d/g)
+      ?.map((item) => cleanDigits(item))
+      .filter((digits) => !isLikelyInvalidReference(digits, window))
+      .sort((a, b) => b.length - a.length) ?? [];
+    const best = candidates[0];
+
+    if (best) return best;
   }
 
   // Fallback dirigido: busca número largo en líneas cercanas a etiquetas de referencia.
@@ -500,11 +543,11 @@ const extractReferencia = (lines: string[], fechaIA: string | null, montoIA: num
     if (!/(ref|referenc|operac|documento|confirmacion|recibo)/.test(normalized)) continue;
 
     const window = `${lines[i]} ${lines[i + 1] ?? ''} ${lines[i + 2] ?? ''}`;
-    const candidate = window.match(/\d[\d\s.-]{5,}\d/g)?.map((item) => cleanDigits(item)).find((d) => d.length >= 6);
+    const candidate = window
+      .match(/\d[\d\s.-]{5,}\d/g)
+      ?.map((item) => cleanDigits(item))
+      .find((digits) => !isLikelyInvalidReference(digits, window));
     if (!candidate) continue;
-
-    if (fechaIA && candidate.includes(fechaIA.replace(/\D/g, ''))) continue;
-    if (montoIA !== null && candidate === String(Math.round(montoIA))) continue;
     return candidate;
   }
 

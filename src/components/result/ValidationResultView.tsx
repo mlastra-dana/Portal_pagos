@@ -144,7 +144,7 @@ const FieldCard = ({ label, value }: { label: string; value: string }) => {
   return (
     <div className="rounded-md border border-border bg-bg px-4 py-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
-      <p className="mt-1 text-sm font-medium text-brand-900">{value}</p>
+      <p className="mt-1 break-all text-sm font-medium text-brand-900">{value}</p>
     </div>
   );
 };
