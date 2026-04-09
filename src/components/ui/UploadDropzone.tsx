@@ -31,7 +31,7 @@ export const UploadDropzone = ({ onFileSelected, error }: UploadDropzoneProps) =
           error ? 'border-danger bg-danger/5' : '',
         )}
       >
-        <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-700">
+        <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-500">
           <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <path d="M20 16.5a4.5 4.5 0 0 0-2.2-8.4 6 6 0 0 0-11.5 1.9A4 4 0 0 0 6 18h12a2 2 0 0 0 2-1.5z" />
             <path d="M12 16V9" />
@@ -39,7 +39,7 @@ export const UploadDropzone = ({ onFileSelected, error }: UploadDropzoneProps) =
           </svg>
         </div>
 
-        <p className="mt-3 text-[1.95rem] leading-tight text-brand-900 sm:text-[2.15rem]">Suba su comprobante</p>
+        <p className="mt-3 text-[1.95rem] leading-tight text-text sm:text-[2.15rem]">Suba su comprobante</p>
         <p className="mx-auto mt-3 max-w-2xl text-sm text-muted">
           Arrastre y suelte su archivo aquí o selecciónelo manualmente.
         </p>
@@ -48,7 +48,7 @@ export const UploadDropzone = ({ onFileSelected, error }: UploadDropzoneProps) =
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            className="inline-flex items-center justify-center rounded-2xl border border-brand-300 bg-white px-8 py-3 text-base font-semibold text-brand-700 transition hover:bg-brand-50"
+            className="inline-flex items-center justify-center rounded-2xl border border-brand-300 bg-white px-8 py-3 text-base font-semibold text-brand-500 transition hover:bg-brand-50"
           >
             Adjuntar comprobante
           </button>

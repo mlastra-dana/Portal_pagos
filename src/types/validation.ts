@@ -82,6 +82,7 @@ export interface ValidationResult {
   documentType: string;
   fields: ValidationFields;
   issues: string[];
+  missingRequiredFields?: string[];
   summary: string;
   audit?: ValidationAudit;
   expectedData?: ExpectedData;

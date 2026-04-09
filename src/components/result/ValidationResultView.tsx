@@ -4,6 +4,7 @@ import { StatusBadge } from '../ui/StatusBadge';
 
 interface ValidationResultViewProps {
   result: ValidationResult;
+  showDataSection?: boolean;
 }
 
 const formatDate = (value: string): string =>
@@ -24,12 +25,12 @@ const issueStyle = (status: ValidationResult['status']): string => {
   return 'border-border bg-bg';
 };
 
-export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
+export const ValidationResultView = ({ result, showDataSection = true }: ValidationResultViewProps) => {
   const [copied, setCopied] = useState(false);
   const statusDescription: Record<ValidationResult['status'], string> = {
-    APPROVED: 'Comprobante extraído correctamente.',
-    OBSERVED: 'Comprobante extraído parcialmente. Verifique los datos detectados.',
-    REJECTED: 'No se extrajo suficiente información confiable del comprobante.',
+    APPROVED: 'Comprobante procesado.',
+    OBSERVED: 'Comprobante procesado con observaciones. Revise los datos complementarios.',
+    REJECTED: 'Comprobante rechazado.',
   };
 
   const extractionJson = JSON.stringify(result.extractedDocument ?? result.rawExtraction?.document ?? {}, null, 2);
@@ -46,12 +47,11 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-lg border border-border bg-white p-6 shadow-soft">
+      <section className="rounded-lg border border-[#d8ccc1] bg-white p-6 shadow-soft">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-2">
             <StatusBadge status={result.status} />
-            <h3 className="text-2xl font-semibold text-brand-900">Resultado de validación</h3>
-            <p className="text-sm text-muted">{statusDescription[result.status]}</p>
+            <p className="text-lg font-semibold text-text">{statusDescription[result.status]}</p>
           </div>
           <div className="text-sm text-muted">
             <p>Procesado: {formatDate(result.processedAt)}</p>
@@ -59,34 +59,14 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
         </div>
       </section>
 
-      <section className="rounded-lg border border-border bg-white p-6 shadow-soft">
-        <h4 className="text-base font-semibold text-brand-900">Datos extraídos</h4>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <FieldCard label="Beneficiario" value={displayValue(result.fields.recipientName)} />
-          <FieldCard label="Banco origen" value={displayValue(result.fields.sourceBank ?? result.fields.banco_emisorIA)} />
-          <FieldCard label="Banco destino" value={displayValue(result.fields.destinationBank ?? result.fields.banco_destinoIA)} />
-          <FieldCard label="Cuenta destino" value={displayValue(result.fields.recipientAccount ?? result.fields.CuentaBancariaIA)} />
-          <FieldCard label="Monto" value={displayValue(result.fields.montoIA)} />
-          <FieldCard label="Moneda" value={displayValue(result.fields.currency)} />
-          <FieldCard label="Fecha" value={displayValue(result.fields.fechaIA)} />
-          <FieldCard
-            label="Referencia"
-            value={displayValue(
-              result.fields.reference
-              ?? result.fields.CompletereferenciaIA
-              ?? result.fields.operationNumber
-              ?? result.fields.rawReferenceIA,
-            )}
-          />
-        </div>
-      </section>
+      {showDataSection ? <ExtractionDataCards result={result} /> : null}
 
       {result.issues.length > 0 ? (
         <section className={`rounded-lg border p-6 shadow-soft ${issueStyle(result.status)}`}>
-          <h4 className="text-base font-semibold text-brand-900">Observaciones</h4>
+          <h4 className="text-base font-semibold text-text">Observaciones</h4>
           <ul className="mt-3 space-y-2">
             {result.issues.map((issue) => (
-              <li key={issue} className="rounded-md border border-border bg-white px-4 py-3 text-sm text-muted">
+              <li key={issue} className="rounded-md border border-[#d8ccc1] bg-white px-4 py-3 text-sm text-muted">
                 {issue}
               </li>
             ))}
@@ -96,10 +76,10 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
 
       {result.processingErrors && result.processingErrors.length > 0 ? (
         <section className="rounded-lg border border-warning/30 bg-warning/5 p-6 shadow-soft">
-          <h4 className="text-base font-semibold text-brand-900">Detalles técnicos</h4>
+          <h4 className="text-base font-semibold text-text">Detalles técnicos</h4>
           <ul className="mt-3 space-y-2">
             {result.processingErrors.map((issue) => (
-              <li key={issue} className="rounded-md border border-border bg-white px-4 py-3 text-sm text-muted">
+              <li key={issue} className="rounded-md border border-[#d8ccc1] bg-white px-4 py-3 text-sm text-muted">
                 {issue}
               </li>
             ))}
@@ -107,9 +87,9 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
         </section>
       ) : null}
 
-      <section className="rounded-lg border border-border bg-white p-6 shadow-soft">
+      <section className="rounded-lg border border-[#d8ccc1] bg-white p-6 shadow-soft">
         <details className="group">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-semibold text-brand-900">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-semibold text-text">
             JSON de extracción
             <span className="text-xs text-muted transition group-open:rotate-180">▼</span>
           </summary>
@@ -117,11 +97,11 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
             <button
               type="button"
               onClick={copyJson}
-              className="inline-flex rounded-md border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-100"
+              className="inline-flex rounded-md border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-500 hover:bg-brand-100"
             >
               {copied ? 'JSON copiado' : 'Copiar JSON'}
             </button>
-            <pre className="max-h-96 overflow-auto rounded-md border border-border bg-bg p-4 text-xs text-brand-900">{extractionJson}</pre>
+            <pre className="max-h-96 overflow-auto rounded-md border border-[#d8ccc1] bg-white p-4 text-xs text-text">{extractionJson}</pre>
           </div>
         </details>
       </section>
@@ -129,11 +109,49 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
   );
 };
 
+export const ExtractionDataCards = ({ result }: { result: ValidationResult }) => {
+  return (
+    <section className="rounded-lg border border-[#d8ccc1] bg-white p-6 shadow-soft">
+      <h4 className="text-base font-semibold text-text">Datos extraídos</h4>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <FieldCard label="Beneficiario" value={displayValue(result.fields.recipientName)} />
+        <FieldCard label="Banco origen" value={displayValue(result.fields.sourceBank ?? result.fields.banco_emisorIA)} />
+        <FieldCard label="Banco destino" value={displayValue(result.fields.destinationBank ?? result.fields.banco_destinoIA)} />
+        <FieldCard label="Cuenta destino" value={displayValue(result.fields.recipientAccount ?? result.fields.CuentaBancariaIA)} />
+        <FieldCard label="Monto" value={displayValue(result.fields.montoIA)} />
+        <FieldCard label="Moneda" value={displayCurrency(result.fields.currency)} />
+        <FieldCard label="Fecha" value={displayValue(result.fields.fechaIA)} />
+        <FieldCard
+          label="Referencia"
+          value={displayValue(
+            result.fields.reference
+            ?? result.fields.CompletereferenciaIA
+            ?? result.fields.operationNumber
+            ?? result.fields.rawReferenceIA,
+          )}
+        />
+      </div>
+    </section>
+  );
+};
+
+const displayCurrency = (value: string | null | undefined): string => {
+  if (!value) return 'No detectado';
+
+  const normalized = value.trim().toUpperCase();
+  if (normalized === 'PEN') return 'Soles (PEN)';
+  if (normalized === 'USD') return 'Dólares (USD)';
+  if (normalized === 'EUR') return 'Euros (EUR)';
+  if (normalized === 'VES') return 'Bolívares (VES)';
+
+  return normalized;
+};
+
 const FieldCard = ({ label, value }: { label: string; value: string }) => {
   return (
-    <div className="rounded-md border border-border bg-bg px-4 py-3">
+    <div className="rounded-md border border-[#d8ccc1] bg-white px-4 py-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
-      <p className="mt-1 break-all text-sm font-medium text-brand-900">{value}</p>
+      <p className="mt-1 break-all text-sm font-medium text-text">{value}</p>
     </div>
   );
 };

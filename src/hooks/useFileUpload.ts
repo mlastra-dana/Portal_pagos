@@ -44,7 +44,7 @@ export const useFileUpload = () => {
       name: file.name,
       size: file.size,
       type: file.type,
-      previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+      previewUrl: URL.createObjectURL(file),
     });
   };
 

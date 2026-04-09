@@ -9,6 +9,7 @@ interface FilePreviewCardProps {
 
 export const FilePreviewCard = ({ uploadedFile, isImage, onRemove }: FilePreviewCardProps) => {
   const typeLabel = uploadedFile.type === 'application/pdf' ? 'PDF' : 'Imagen';
+  const isPdf = uploadedFile.type === 'application/pdf' || uploadedFile.type === 'application/x-pdf';
 
   return (
     <div className="rounded-xl border border-border bg-white p-4 shadow-soft">
@@ -32,13 +33,24 @@ export const FilePreviewCard = ({ uploadedFile, isImage, onRemove }: FilePreview
         </button>
       </div>
 
-      <div className="mt-4 rounded-md border border-border bg-bg p-3">
+      <div className="mt-3 rounded-md border border-border bg-bg p-2">
         {isImage && uploadedFile.previewUrl ? (
           <img
             src={uploadedFile.previewUrl}
             alt={`Vista previa de ${uploadedFile.name}`}
-            className="max-h-56 w-auto rounded-md object-contain"
+            className="max-h-44 w-auto rounded-md object-contain"
           />
+        ) : isPdf && uploadedFile.previewUrl ? (
+          <object
+            data={uploadedFile.previewUrl}
+            type="application/pdf"
+            className="h-[420px] w-full rounded-md"
+          >
+            <div className="flex items-center gap-3 text-sm text-brand-800">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-brand-100">PDF</span>
+              <span>Vista previa no disponible. Abra el PDF desde su navegador.</span>
+            </div>
+          </object>
         ) : (
           <div className="flex items-center gap-3 text-sm text-brand-800">
             <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-brand-100">PDF</span>

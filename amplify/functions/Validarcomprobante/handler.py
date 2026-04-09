@@ -193,7 +193,8 @@ def guess_mime_type(file_name: str) -> str:
 
 
 def sanitize_document_name(file_name: str) -> str:
-    base = os.path.basename(file_name)
+    base = os.path.splitext(os.path.basename(file_name))[0]
+    base = base.replace("_", " ")
     base = re.sub(r"[^A-Za-z0-9\-\(\)\[\] ]+", " ", base)
     base = re.sub(r"\s+", " ", base).strip()
     return base[:80] or "Documento"

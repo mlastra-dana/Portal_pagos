@@ -4,11 +4,11 @@
 
 :root {
   color-scheme: light;
-  --app-bg-top: #f6f4f1;
-  --app-bg-mid: #f2f0ed;
-  --app-bg-bottom: #f3f1ee;
-  --app-spot-a: rgba(234, 91, 49, 0.05);
-  --app-spot-b: rgba(74, 45, 20, 0.035);
+  --app-bg-top: #efebe6;
+  --app-bg-mid: #e8e3dd;
+  --app-bg-bottom: #ebe6e0;
+  --app-spot-a: rgba(239, 111, 67, 0.07);
+  --app-spot-b: rgba(95, 75, 59, 0.05);
   --app-text: #2f2f33;
 }
 

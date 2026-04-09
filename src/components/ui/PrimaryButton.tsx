@@ -9,7 +9,7 @@ export const PrimaryButton = ({
   return (
     <button
       className={cn(
-        'inline-flex items-center justify-center rounded-lg bg-brand-700 px-5 py-3 text-sm font-semibold tracking-[0.01em] text-white shadow-soft transition hover:-translate-y-[1px] hover:bg-brand-800 hover:shadow-panel disabled:cursor-not-allowed disabled:bg-brand-300 disabled:hover:translate-y-0 disabled:hover:shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400',
+        'inline-flex items-center justify-center rounded-lg bg-brand-500 px-5 py-3 text-sm font-semibold tracking-[0.01em] text-white shadow-soft transition hover:-translate-y-[1px] hover:bg-brand-600 hover:shadow-panel disabled:cursor-not-allowed disabled:bg-brand-200 disabled:text-white/80 disabled:hover:translate-y-0 disabled:hover:shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300',
         className,
       )}
       {...props}
