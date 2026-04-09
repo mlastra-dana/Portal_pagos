@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ValidationResult } from '../../types/validation';
+import type { DocumentCategory, ValidationResult } from '../../types/validation';
 import { StatusBadge } from '../ui/StatusBadge';
 
 interface ValidationResultViewProps {
@@ -110,29 +110,52 @@ export const ValidationResultView = ({ result, showDataSection = true }: Validat
 };
 
 export const ExtractionDataCards = ({ result }: { result: ValidationResult }) => {
+  const cards = getFieldCards(result);
+
   return (
     <section className="rounded-lg border border-[#d8ccc1] bg-white p-6 shadow-soft">
       <h4 className="text-base font-semibold text-text">Datos extraídos</h4>
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <FieldCard label="Beneficiario" value={displayValue(result.fields.recipientName)} />
-        <FieldCard label="Banco origen" value={displayValue(result.fields.sourceBank ?? result.fields.banco_emisorIA)} />
-        <FieldCard label="Banco destino" value={displayValue(result.fields.destinationBank ?? result.fields.banco_destinoIA)} />
-        <FieldCard label="Cuenta destino" value={displayValue(result.fields.recipientAccount ?? result.fields.CuentaBancariaIA)} />
-        <FieldCard label="Monto" value={displayValue(result.fields.montoIA)} />
-        <FieldCard label="Moneda" value={displayCurrency(result.fields.currency)} />
-        <FieldCard label="Fecha" value={displayValue(result.fields.fechaIA)} />
-        <FieldCard
-          label="Referencia"
-          value={displayValue(
-            result.fields.reference
-            ?? result.fields.CompletereferenciaIA
-            ?? result.fields.operationNumber
-            ?? result.fields.rawReferenceIA,
-          )}
-        />
+        {cards.map((card) => (
+          <FieldCard key={card.label} label={card.label} value={card.value} />
+        ))}
       </div>
     </section>
   );
+};
+
+const getFieldCards = (result: ValidationResult): Array<{ label: string; value: string }> => {
+  const category: DocumentCategory = result.documentCategory ?? 'BANK_TRANSFER';
+  const referenceValue = displayValue(
+    result.fields.reference
+    ?? result.fields.CompletereferenciaIA
+    ?? result.fields.operationNumber
+    ?? result.fields.rawReferenceIA,
+  );
+
+  if (category === 'DIGITAL_WALLET') {
+    return [
+      { label: 'Beneficiario', value: displayValue(result.fields.recipientName) },
+      { label: 'Origen del pago', value: displayValue(result.fields.sourceBank ?? result.fields.senderAccount ?? result.fields.senderName ?? result.fields.banco_emisorIA) },
+      { label: 'Destino', value: displayValue(result.fields.recipientAccount ?? result.fields.CuentaBancariaIA ?? result.fields.recipientName) },
+      { label: 'Método', value: displayValue(result.fields.paymentMethod ?? result.fields.documentType) },
+      { label: 'Monto', value: displayValue(result.fields.montoIA) },
+      { label: 'Moneda', value: displayCurrency(result.fields.currency) },
+      { label: 'Fecha', value: displayValue(result.fields.fechaIA) },
+      { label: 'Referencia', value: referenceValue },
+    ];
+  }
+
+  return [
+    { label: 'Beneficiario', value: displayValue(result.fields.recipientName) },
+    { label: 'Banco origen', value: displayValue(result.fields.sourceBank ?? result.fields.banco_emisorIA) },
+    { label: 'Banco destino', value: displayValue(result.fields.destinationBank ?? result.fields.banco_destinoIA) },
+    { label: 'Cuenta destino', value: displayValue(result.fields.recipientAccount ?? result.fields.CuentaBancariaIA) },
+    { label: 'Monto', value: displayValue(result.fields.montoIA) },
+    { label: 'Moneda', value: displayCurrency(result.fields.currency) },
+    { label: 'Fecha', value: displayValue(result.fields.fechaIA) },
+    { label: 'Referencia', value: referenceValue },
+  ];
 };
 
 const displayCurrency = (value: string | null | undefined): string => {

@@ -1,5 +1,5 @@
 import { fileToBase64 } from './fileToBase64';
-import type { ExpectedData, ExtractedDocument, ValidationResult, ValidationStatus } from '../types/validation';
+import type { DocumentCategory, ExpectedData, ExtractedDocument, ValidationResult, ValidationStatus } from '../types/validation';
 
 const LAMBDA_FUNCTION_URL =
   (import.meta.env.VITE_LAMBDA_FUNCTION_URL as string | undefined)
@@ -23,9 +23,56 @@ const safeRecord = (value: unknown): Record<string, unknown> => {
   return value as Record<string, unknown>;
 };
 
-const getMissingRequiredFields = (fields: {
+const normalizeTextValue = (value: string | null | undefined): string | null => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const looksLikeSourceDescriptor = (value: string | null | undefined): boolean => {
+  const text = normalizeTextValue(value);
+  if (!text) return false;
+  return /[a-z]/i.test(text);
+};
+
+const inferPaymentRailBrand = (fields: Array<string | null | undefined>): string | null => {
+  const combined = fields.filter(Boolean).join(' ').toLowerCase();
+
+  if (combined.includes('zinli')) return 'Zinli';
+  if (combined.includes('zelle')) return 'Zelle';
+  if (combined.includes('paypal')) return 'PayPal';
+  if (combined.includes('wise')) return 'Wise';
+  if (combined.includes('airtm')) return 'Airtm';
+  if (combined.includes('binance')) return 'Binance';
+
+  return null;
+};
+
+const classifyDocumentCategory = (fields: {
+  documentType?: string | null;
+  paymentMethod?: string | null;
+  channel?: string | null;
   recipientAccount?: string | null;
   CuentaBancariaIA?: string | null;
+  recipientName?: string | null;
+  sourceBank?: string | null;
+  destinationBank?: string | null;
+  banco_emisorIA?: string | null;
+  banco_destinoIA?: string | null;
+  currency?: string | null;
+  reference?: string | null;
+  CompletereferenciaIA?: string | null;
+  rawReferenceIA?: string | null;
+  operationNumber?: string | null;
+}): DocumentCategory => {
+  return isAlternativePaymentRail(fields) ? 'DIGITAL_WALLET' : 'BANK_TRANSFER';
+};
+
+const getMissingRequiredFields = (fields: {
+  documentCategory?: DocumentCategory;
+  recipientAccount?: string | null;
+  CuentaBancariaIA?: string | null;
+  recipientName?: string | null;
   transactionDate?: string | null;
   fechaIA?: string | null;
   amount?: number | null;
@@ -36,8 +83,11 @@ const getMissingRequiredFields = (fields: {
   operationNumber?: string | null;
 }): string[] => {
   const missing: string[] = [];
+  const category = fields.documentCategory ?? 'BANK_TRANSFER';
 
-  const hasDestinationAccount = Boolean(fields.recipientAccount ?? fields.CuentaBancariaIA);
+  const hasDestinationIdentifier = category === 'DIGITAL_WALLET'
+    ? Boolean(fields.recipientAccount ?? fields.CuentaBancariaIA ?? fields.recipientName)
+    : Boolean(fields.recipientAccount ?? fields.CuentaBancariaIA);
   const hasDate = Boolean(fields.transactionDate ?? fields.fechaIA);
   const hasAmount = (fields.amount ?? fields.montoIA) != null;
   const hasReference = Boolean(
@@ -50,7 +100,9 @@ const getMissingRequiredFields = (fields: {
   if (!hasDate) missing.push('fecha');
   if (!hasAmount) missing.push('monto');
   if (!hasReference) missing.push('referencia');
-  if (!hasDestinationAccount) missing.push('cuenta destino');
+  if (!hasDestinationIdentifier) {
+    missing.push(category === 'DIGITAL_WALLET' ? 'destino' : 'cuenta destino');
+  }
 
   return missing;
 };
@@ -62,6 +114,15 @@ const isAlternativePaymentRail = (fields: {
   recipientAccount?: string | null;
   CuentaBancariaIA?: string | null;
   recipientName?: string | null;
+  sourceBank?: string | null;
+  destinationBank?: string | null;
+  banco_emisorIA?: string | null;
+  banco_destinoIA?: string | null;
+  currency?: string | null;
+  reference?: string | null;
+  CompletereferenciaIA?: string | null;
+  rawReferenceIA?: string | null;
+  operationNumber?: string | null;
 }): boolean => {
   const combined = [
     fields.documentType,
@@ -70,15 +131,34 @@ const isAlternativePaymentRail = (fields: {
     fields.recipientAccount,
     fields.CuentaBancariaIA,
     fields.recipientName,
+    fields.sourceBank,
+    fields.destinationBank,
+    fields.banco_emisorIA,
+    fields.banco_destinoIA,
   ]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
 
-  return /(zelle|zinli|paypal|wise|airtm|binance|wallet|billetera)/.test(combined);
+  if (/(zelle|zinli|paypal|wise|airtm|binance|wallet|billetera)/.test(combined)) {
+    return true;
+  }
+
+  const hasUsd = String(fields.currency ?? '').trim().toUpperCase() === 'USD';
+  const hasReference = Boolean(fields.reference ?? fields.CompletereferenciaIA ?? fields.rawReferenceIA ?? fields.operationNumber);
+  const hasRecipient = Boolean(fields.recipientName);
+  const hasAnyBank = Boolean(fields.sourceBank ?? fields.destinationBank ?? fields.banco_emisorIA ?? fields.banco_destinoIA);
+  const hasTraditionalAccount = Boolean(fields.recipientAccount ?? fields.CuentaBancariaIA);
+
+  if (hasUsd && hasReference && hasRecipient && hasAnyBank && !hasTraditionalAccount) {
+    return true;
+  }
+
+  return false;
 };
 
 const getMissingComplementaryFields = (fields: {
+  documentCategory?: DocumentCategory;
   documentType?: string | null;
   paymentMethod?: string | null;
   channel?: string | null;
@@ -92,7 +172,7 @@ const getMissingComplementaryFields = (fields: {
   currency?: string | null;
 }): string[] => {
   const missing: string[] = [];
-  const isAlternativeRail = isAlternativePaymentRail(fields);
+  const category = fields.documentCategory ?? classifyDocumentCategory(fields);
 
   const hasRecipient = Boolean(fields.recipientName);
   const hasSourceBank = Boolean(fields.sourceBank ?? fields.banco_emisorIA);
@@ -100,9 +180,11 @@ const getMissingComplementaryFields = (fields: {
   const hasCurrency = Boolean(fields.currency);
 
   if (!hasRecipient) missing.push('beneficiario');
-  if (!isAlternativeRail) {
+  if (category === 'BANK_TRANSFER') {
     if (!hasSourceBank) missing.push('banco origen');
     if (!hasDestinationBank) missing.push('banco destino');
+  } else {
+    if (!hasSourceBank) missing.push('origen del pago');
   }
   if (!hasCurrency) missing.push('moneda');
 
@@ -170,9 +252,32 @@ const normalizeResult = (raw: unknown): ValidationResult => {
     (fields.recipientName as string | null | undefined)
     ?? normalizedDocument.recipientName
     ?? null;
+  const inferredRailBrand = inferPaymentRailBrand([
+    normalizedDocumentType,
+    normalizedDocument.paymentMethod,
+    normalizedDocument.channel,
+    normalizedDocument.recipientAccount,
+    (fields.recipientAccount as string | null | undefined),
+    (fields.CuentaBancariaIA as string | null | undefined),
+    (fields.reference as string | null | undefined),
+    (fields.rawReferenceIA as string | null | undefined),
+  ]);
+  const inferredSourceDescriptor =
+    normalizeTextValue(normalizedDocument.issuerBankName)
+    ?? (
+      looksLikeSourceDescriptor(normalizedDocument.senderAccount)
+        ? normalizeTextValue(normalizedDocument.senderAccount)
+        : null
+    )
+    ?? (
+      looksLikeSourceDescriptor(normalizedDocument.senderName)
+        ? normalizeTextValue(normalizedDocument.senderName)
+        : null
+    )
+    ?? inferredRailBrand;
   const normalizedSourceBank =
     (fields.sourceBank as string | null | undefined)
-    ?? normalizedDocument.issuerBankName
+    ?? inferredSourceDescriptor
     ?? null;
   const normalizedDestinationBank =
     (fields.destinationBank as string | null | undefined)
@@ -233,12 +338,17 @@ const normalizeResult = (raw: unknown): ValidationResult => {
     channel: (fields.channel as string | null | undefined) ?? normalizedDocument.channel ?? null,
     countryCode: (fields.countryCode as string | null | undefined) ?? normalizedDocument.countryCode ?? null,
   };
+  const documentCategory = classifyDocumentCategory(normalizedFields);
+  const categorizedFields = {
+    ...normalizedFields,
+    documentCategory,
+  };
 
   const rawIssues = asArrayOfStrings(data.issues);
   const processingErrors = asArrayOfStrings(data.processingErrors);
-  const missingRequiredFields = getMissingRequiredFields(normalizedFields);
-  const missingComplementaryFields = getMissingComplementaryFields(normalizedFields);
-  const isAlternativeRail = isAlternativePaymentRail(normalizedFields);
+  const missingRequiredFields = getMissingRequiredFields(categorizedFields);
+  const missingComplementaryFields = getMissingComplementaryFields(categorizedFields);
+  const isAlternativeRail = documentCategory === 'DIGITAL_WALLET';
   const status: ValidationStatus =
     missingRequiredFields.length > 0
       ? 'REJECTED'
@@ -286,6 +396,7 @@ const normalizeResult = (raw: unknown): ValidationResult => {
     validationId,
     processedAt,
     status,
+    documentCategory,
     documentType: String(data.documentType ?? data.document_type ?? 'Comprobante de pago'),
     summary,
     issues: dedupeIssues(filteredIssues),

@@ -1,4 +1,5 @@
 export type ValidationStatus = 'APPROVED' | 'OBSERVED' | 'REJECTED';
+export type DocumentCategory = 'BANK_TRANSFER' | 'DIGITAL_WALLET';
 
 export interface UploadedFile {
   file: File;
@@ -79,6 +80,7 @@ export interface ValidationResult {
   validationId: string;
   processedAt: string;
   status: ValidationStatus;
+  documentCategory: DocumentCategory;
   documentType: string;
   fields: ValidationFields;
   issues: string[];
