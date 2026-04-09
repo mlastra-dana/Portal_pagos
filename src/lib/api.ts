@@ -436,7 +436,9 @@ export const validateReceipt = async (file: File, expectedData?: ExpectedData): 
   const response = await fetch(LAMBDA_FUNCTION_URL, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
+      // Use a simple request content type to avoid a browser CORS preflight
+      // against Lambda Function URLs that are missing explicit OPTIONS config.
+      'Content-Type': 'text/plain;charset=UTF-8',
     },
     body: JSON.stringify(payload),
   });
