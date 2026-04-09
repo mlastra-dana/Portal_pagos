@@ -20,6 +20,7 @@ export const ValidatePage = () => {
 
   const handleClearAll = () => {
     clearFile();
+    setIsAutoExtracting(false);
     setResult(null);
     setFormError('');
     setTechnicalError('');
@@ -27,6 +28,9 @@ export const ValidatePage = () => {
 
   useEffect(() => {
     if (!uploadedFile) {
+      setIsAutoExtracting(false);
+      setFormError('');
+      setTechnicalError('');
       setResult(null);
       return;
     }

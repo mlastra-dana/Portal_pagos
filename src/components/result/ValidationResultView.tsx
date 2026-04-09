@@ -29,7 +29,7 @@ export const ValidationResultView = ({ result, showDataSection = true }: Validat
   const [copied, setCopied] = useState(false);
   const statusDescription: Record<ValidationResult['status'], string> = {
     APPROVED: 'Comprobante procesado.',
-    OBSERVED: 'Comprobante procesado con observaciones. Revise los datos complementarios.',
+    OBSERVED: 'Comprobante procesado con observaciones.',
     REJECTED: 'Comprobante rechazado.',
   };
 

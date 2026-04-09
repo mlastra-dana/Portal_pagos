@@ -370,7 +370,13 @@ const normalizeResult = (raw: unknown): ValidationResult => {
       return false;
     }
 
-    if (missingRequiredFields.length > 0 && lower.includes('no se detecto referencia ni numero de operacion')) {
+    if (
+      missingRequiredFields.length > 0
+      && (
+        lower.includes('no se detectó referencia ni número de operación')
+        || lower.includes('no se detecto referencia ni numero de operacion')
+      )
+    ) {
       return false;
     }
 
@@ -445,7 +451,7 @@ export const validateReceipt = async (file: File, expectedData?: ExpectedData): 
   if (!response.ok) {
     const errData = safeRecord(data);
     throw new Error(
-      String(errData.details ?? errData.error ?? errData.message ?? 'Error validando comprobante'),
+      String(errData.details ?? errData.error ?? errData.message ?? 'Error al validar el comprobante'),
     );
   }
 
