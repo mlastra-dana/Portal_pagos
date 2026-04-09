@@ -14,10 +14,6 @@ export const ValidatePage = () => {
   const navigate = useNavigate();
   const { uploadedFile, isImage, error, setFile, clearFile } = useFileUpload();
 
-  const [nombreDepositante, setNombreDepositante] = useState('');
-  const [cedulaTipo, setCedulaTipo] = useState<'V' | 'J'>('V');
-  const [cedulaNumero, setCedulaNumero] = useState('');
-
   const [isAutoExtracting, setIsAutoExtracting] = useState(false);
   const [formError, setFormError] = useState('');
   const [technicalError, setTechnicalError] = useState('');
@@ -28,9 +24,6 @@ export const ValidatePage = () => {
     setResult(null);
     setFormError('');
     setTechnicalError('');
-    setNombreDepositante('');
-    setCedulaTipo('V');
-    setCedulaNumero('');
   };
 
   useEffect(() => {
@@ -85,22 +78,8 @@ export const ValidatePage = () => {
       return;
     }
 
-    if (!nombreDepositante.trim()) {
-      setFormError('El nombre del depositante es obligatorio.');
-      return;
-    }
-
-    if (!cedulaNumero.trim()) {
-      setFormError('La cédula de identidad es obligatoria.');
-      return;
-    }
-
     navigate('/documentos-complementarios', {
       state: {
-        depositor: {
-          nombre: nombreDepositante.trim(),
-          cedula: `${cedulaTipo}-${cedulaNumero.trim()}`,
-        },
         extraction: result,
         comprobante: {
           name: uploadedFile.name,
@@ -114,39 +93,46 @@ export const ValidatePage = () => {
   const isContinueDisabled =
     !uploadedFile
     || !result
-    || isAutoExtracting
-    || !nombreDepositante.trim()
-    || !cedulaNumero.trim();
+    || isAutoExtracting;
 
   return (
     <div className="w-full space-y-8">
-      <div className="overflow-hidden rounded-2xl border border-brand-100 bg-[#f5f6f8] shadow-premium">
+      <div className="overflow-hidden rounded-[2rem] border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,245,242,0.98))] shadow-premium">
         <form onSubmit={handleSubmit} className="px-7 py-8 md:px-9">
           <SectionTitle
-            eyebrow="Gestión de pagos"
-            title="Validación de pago"
+            eyebrow="DANAConnect Demo"
+            title="Extracción de comprobante"
+            description="Carga un comprobante y deja que el motor de extracción complete los datos detectados y el JSON estructurado."
           />
 
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
-            <section className="space-y-4 rounded-xl border border-brand-100 bg-white p-4 shadow-soft">
+            <section className="space-y-4 rounded-[1.5rem] border border-border bg-white p-4 shadow-soft">
               {!uploadedFile ? <UploadDropzone onFileSelected={setFile} error={error} /> : null}
 
               {uploadedFile ? <FilePreviewCard uploadedFile={uploadedFile} isImage={isImage} onRemove={handleClearAll} /> : null}
 
-              <div className="rounded-xl border border-brand-100 bg-bg p-3">
+              <div className="rounded-[1.25rem] border border-border bg-bg p-3">
                 <p className="text-sm font-semibold text-brand-900">Datos extraídos del comprobante</p>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   <ExtractedInput
-                    label="Cuenta destino"
-                    value={formatExtracted(result?.fields.CuentaBancariaIA)}
+                    label="Beneficiario"
+                    value={formatExtracted(result?.fields.recipientName)}
+                  />
+                  <ExtractedInput
+                    label="Banco origen"
+                    value={formatExtracted(result?.fields.sourceBank ?? result?.fields.banco_emisorIA)}
                   />
                   <ExtractedInput
                     label="Banco destino"
-                    value={formatExtracted(result?.fields.banco_destinoIA)}
+                    value={formatExtracted(result?.fields.destinationBank ?? result?.fields.banco_destinoIA)}
+                  />
+                  <ExtractedInput
+                    label="Cuenta destino"
+                    value={formatExtracted(result?.fields.recipientAccount ?? result?.fields.CuentaBancariaIA)}
                   />
                   <ExtractedInput
                     label="Monto"
-                    value={formatExtracted(result?.fields.montoIA)}
+                    value={formatAmount(result?.fields.montoIA, result?.fields.currency)}
                   />
                   <ExtractedInput
                     label="Fecha"
@@ -154,62 +140,22 @@ export const ValidatePage = () => {
                   />
                   <ExtractedInput
                     label="Referencia"
-                    value={formatReference8(result?.fields.CompletereferenciaIA ?? result?.fields.rawReferenceIA)}
-                  />
-                  <ExtractedInput
-                    label="Banco emisor"
-                    value={formatExtracted(result?.fields.banco_emisorIA)}
-                  />
-                  <ExtractedInput
-                    label="Código banco emisor"
-                    value={formatExtracted(result?.fields.issuerBankIdIA)}
+                    value={formatExtracted(
+                      result?.fields.reference
+                      ?? result?.fields.CompletereferenciaIA
+                      ?? result?.fields.operationNumber
+                      ?? result?.fields.rawReferenceIA,
+                    )}
                   />
                 </div>
               </div>
             </section>
 
-            <section className="rounded-xl border border-brand-100 bg-white p-4 shadow-soft">
-              <fieldset className="grid gap-3">
-                <legend className="text-sm font-semibold text-brand-900">Datos del depositante</legend>
-
-                <div>
-                  <label htmlFor="nombreDepositante" className="mb-2 mt-2 block text-sm font-medium text-brand-900">
-                    Nombre
-                  </label>
-                  <input
-                    id="nombreDepositante"
-                    type="text"
-                    value={nombreDepositante}
-                    onChange={(event) => setNombreDepositante(event.target.value)}
-                    className="w-full rounded-md border border-border bg-white px-4 py-2.5 text-sm text-brand-900 placeholder:text-muted focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 mt-2 block text-sm font-medium text-brand-900">
-                    Cédula de identidad
-                  </label>
-                  <div className="grid grid-cols-[86px_1fr] gap-2">
-                    <select
-                      aria-label="Tipo de cédula"
-                      value={cedulaTipo}
-                      onChange={(event) => setCedulaTipo(event.target.value as 'V' | 'J')}
-                      className="rounded-md border border-border bg-white px-3 py-2.5 text-sm font-semibold text-brand-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
-                    >
-                      <option value="V">V</option>
-                      <option value="J">J</option>
-                    </select>
-                    <input
-                      id="cedulaDepositante"
-                      type="text"
-                      inputMode="numeric"
-                      value={cedulaNumero}
-                      onChange={(event) => setCedulaNumero(event.target.value.replace(/\D/g, '').slice(0, 10))}
-                      className="w-full rounded-md border border-border bg-white px-4 py-2.5 text-sm text-brand-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
-                    />
-                  </div>
-                </div>
-              </fieldset>
+            <section className="rounded-[1.5rem] border border-border bg-white p-4 shadow-soft">
+              <p className="text-sm font-semibold text-brand-900">Resultado de extracción</p>
+              <p className="mt-2 text-sm text-muted">
+                Este portal toma la información directamente del comprobante. No se solicitan datos manuales del depositante en este flujo.
+              </p>
 
               {formError ? <p className="mt-4 text-sm font-medium text-danger">{formError}</p> : null}
               {technicalError ? <p className="mt-1 text-xs text-muted">Detalle técnico: {technicalError}</p> : null}
@@ -270,11 +216,10 @@ const formatExtracted = (value: string | number | null | undefined): string => {
   return String(value);
 };
 
-const formatReference8 = (value: string | null | undefined): string => {
-  if (!value) return '';
-  const digits = value.replace(/\D/g, '');
-  if (digits.length < 8) return '';
-  return digits.slice(-8);
+const formatAmount = (amount: number | null | undefined, currency: string | null | undefined): string => {
+  if (amount === null || amount === undefined) return '';
+  if (!currency) return String(amount);
+  return `${currency} ${amount}`;
 };
 
 const InlineProcessingState = ({ title, message }: { title: string; message: string }) => (

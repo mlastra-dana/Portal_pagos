@@ -4,165 +4,114 @@ import json
 import mimetypes
 import os
 import re
+import traceback
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Dict, Optional
 
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 
 BEDROCK_REGION = os.getenv("BEDROCK_REGION", os.getenv("AWS_REGION", "us-east-1"))
-BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-sonnet-4-20250514-v1:0")
+BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-3-7-sonnet-20250219-v1:0")
 RESULT_BUCKET = os.getenv("RESULT_BUCKET", "")
 RESULT_PREFIX = os.getenv("RESULT_PREFIX", "receipt-validations")
 
-bedrock = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
+bedrock = boto3.client(
+    "bedrock-runtime",
+    region_name=BEDROCK_REGION,
+    config=Config(
+        connect_timeout=5,
+        read_timeout=45,
+        retries={"max_attempts": 2, "mode": "standard"},
+    ),
+)
 s3 = boto3.client("s3")
 
 
-MAIN_EXTRACTION_PROMPT = """
-Actua como un Sistema de Auditoria y Extraccion de Datos Financieros.
-Debes analizar el comprobante venezolano y devolver SOLO JSON valido.
-No agregues explicaciones, markdown, ni texto adicional.
+GENERIC_EXTRACTION_PROMPT = """
+Actua como un sistema universal de extraccion de comprobantes de pago.
+Debes analizar cualquier comprobante, recibo o confirmacion de pago y responder SOLO JSON valido.
+No agregues explicaciones, markdown ni texto adicional.
 
-OBJETIVO DE SALIDA (EXACTA):
+TIPOS DE DOCUMENTO POSIBLES:
+- transferencia bancaria
+- deposito bancario
+- pago movil
+- zelle
+- recibo POS
+- comprobante de billetera digital
+- transferencia internacional
+- comprobante de cajero
+- confirmacion de pago web o app bancaria
+
+DEVUELVE EXACTAMENTE ESTE JSON:
 {
-  "CuentaBancariaIA": null,
-  "banco_destinoIA": null,
-  "montoIA": null,
-  "fechaIA": null,
-  "CompletereferenciaIA": null
+  "documentType": null,
+  "issuerName": null,
+  "issuerBankName": null,
+  "issuerBankCode": null,
+  "senderName": null,
+  "senderAccount": null,
+  "recipientName": null,
+  "recipientAccount": null,
+  "destinationBankName": null,
+  "destinationBankCode": null,
+  "transactionDate": null,
+  "transactionTime": null,
+  "amount": null,
+  "currency": null,
+  "reference": null,
+  "operationNumber": null,
+  "paymentMethod": null,
+  "channel": null,
+  "countryCode": null,
+  "language": null,
+  "summary": null,
+  "notes": []
 }
 
-REGLAS DE EXTRACCION:
-1) CuentaBancariaIA:
-- Buscar cuenta destino / beneficiario cerca de etiquetas:
-  "A la cuenta", "Cuenta abonada", "Cuenta destino", "Beneficiario", "A cuenta", "Destino".
-- Ignorar totalmente:
-  "Desde mi cuenta", "Cuenta de origen", "Cuenta a debitar", "Ordenante", "Debito".
-- Si hay dos cuentas, escoger siempre la que NO es del ordenante.
-- Limpiar guiones, asteriscos y espacios.
-- Validacion anti-referencia:
-  Si es puramente numerica y tiene menos de 20 digitos, NO es cuenta bancaria, devolver null.
-
-2) banco_destinoIA:
-- Si CuentaBancariaIA comienza con 0105 => "Mercantil Banco" (exacto).
-- Si comienza con 0108 o el destino es Provincial => "Banco Provincial" (exacto).
-- Si no se puede determinar con prefijo/texto => null.
-
-3) fechaIA:
-- Buscar "Fecha" o "Fecha de la operacion".
-- Convertir a YYYY-MM-DD.
-- Si la fecha extraida no trae anio visible, usar el anio de $s{FechaProcesamientoIA}.
-- No inventar anio si no existe $s{FechaProcesamientoIA}.
-
-4) CompletereferenciaIA:
-- Extraer referencia numerica desde etiquetas:
-  "Referencia Interbancaria", "Referencia", "Numero de Referencia",
-  "Numero de identificacion", "Operacion", "Ref", "N de Recibo", "Documento", "confirmacion".
-- Priorizar "Referencia Interbancaria".
-- No extraer de Cedula/RIF/ID/Cuenta/campos pagador.
-- Si contiene texto descriptivo, descartarlo.
-- Si esta partida en lineas o con / o -, concatenar y limpiar todo.
-- Salida final: string de digitos.
-
-5) montoIA:
-- Buscar "Monto a transferir", "Total" o "Bs.".
-- Convertir formato venezolano a float estandar:
-  eliminar separador de miles y usar punto decimal.
-  Ejemplo: "10.781,00 Bs" => 10781.00.
-
-REGLAS FINALES:
-- Si no encuentras un campo, devolver null en ese campo.
-- No inventar ni inferir fuera de estas reglas.
-""".strip()
-
-
-ISSUER_EXTRACTION_PROMPT = """
-Actua como un Sistema de Auditoria y Extraccion de Datos Financieros.
-Tu unica mision es identificar BANCO EMISOR (Origen) del comprobante nacional o internacional.
-
-REGLAS CRITICAS:
-- Responder SOLO JSON, sin markdown ni explicaciones.
-- Salida en una sola linea.
-
-FORMATO DE SALIDA:
-{
-  "banco_emisorIA": "string",
-  "issuerBankIdIA": "string"
-}
-
-ALGORITMO (A->F):
-A) PRIORIDAD MAXIMA: cuenta de origen/debito
-- Busca "Cuenta de Origen", "Cuenta a Debitar" o "Debito".
-- Si el prefijo coincide con codigo bancario, asigna banco y detener.
-- Si la cuenta esta oculta o no visible, pasar a B.
-
-B) REGLA MERCANTIL (105) estricta:
-- Solo asignar Mercantil si:
-  1) referencia empieza en "00255", o
-  2) existe check grande con "Listo!".
-- Si solo aparece "Mercantil" como destino/beneficiario, NO es emisor.
-
-C) REGLA PROVINCIAL (108):
-- Si hay barra/franja azul con dos avatares en encabezado, asignar Provincial.
-- O si la fecha viene como dia/mes sin anio (ej: 02 AGO), asignar Provincial.
-
-D) INTERNACIONAL / USD:
-- Si detectas Zelle, Mercantil Panama, Banesco Panama, Bank of America, Chase,
-  Wells Fargo, PayPal, Binance o banco extranjero:
-  banco_emisorIA = entidad exacta detectada
-  issuerBankIdIA = "No Aplica"
-  detener.
-
-E) IDENTIFICACION VISUAL GENERICA:
-- Si fallan A-D, usar solo el header (10% superior) para identificar logo y banco.
-- Si hay conflicto entre logo del header y texto del cuerpo, manda logo del header.
-
-F) FALLA NEUTRAL:
-- Si no hay certeza, devolver:
-  { "banco_emisorIA": "Otros Bancos", "issuerBankIdIA": null }
-
-TABLA DE CODIGOS:
-102 Banco de Venezuela
-104 Venezolano de Credito
-105 Mercantil Banco
-108 BBVA Provincial
-114 Bancaribe
-115 Banco Exterior
-128 Banco Caroni
-134 Banesco
-137 Banco Sofitasa
-138 Banco Plaza
-146 Bangente C.A
-151 BFC Banco Fondo Comun
-156 100% Banco
-157 DelSur Banco Universal
-163 Banco del Tesoro
-166 Banco Agricola de Venezuela
-168 Bancrecer, Banco Microfinanciero
-169 R4, Banco Microfinanciero
-171 Banco Activo
-172 Bancamiga
-173 Banco Internacional de Desarrollo
-174 Banplus Banco Universal
-175 Banco Digital de Los Trabajadores
-177 Banco de la Fuerza Armada Nacional Bolivariana
-178 N58 Banco Digital
-191 Banco Nacional de Credito
-601 Instituto Municipal de Credito Popular
+REGLAS:
+1) Extrae datos de cualquier comprobante de pago, sin asumir pais especifico.
+2) Si un campo no aparece de forma razonablemente clara, devuelve null.
+3) amount debe ser numero, no string.
+4) transactionDate debe venir en formato YYYY-MM-DD cuando sea posible normalizarla.
+5) transactionTime debe venir en HH:MM o HH:MM:SS si aparece.
+6) currency debe venir normalizada si es evidente:
+   VES, USD, EUR, PEN, COP, CLP, MXN, ARS, BRL.
+   Si solo existe simbolo y es claro, normalizalo. Si no, null.
+7) reference y operationNumber no son obligatoriamente iguales.
+8) senderAccount y recipientAccount pueden venir enmascaradas si asi aparecen.
+9) notes debe ser un arreglo corto de hallazgos relevantes o ambiguedades.
+10) No inventes bancos, cuentas, montos, referencias ni fechas.
 """.strip()
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     try:
-        payload = parse_event_body(event)
+        http_method = (
+            event.get("requestContext", {}).get("http", {}).get("method")
+            or event.get("httpMethod")
+            or ""
+        ).upper()
 
-        file_name = payload.get("fileName") or f"comprobante-{uuid.uuid4()}"
+        if http_method == "OPTIONS":
+            return response(200, {"ok": True})
+
+        payload = parse_event_body(event)
+        file_name = payload.get("fileName") or f"receipt-{uuid.uuid4()}"
         mime_type = payload.get("mimeType") or guess_mime_type(file_name)
         file_base64 = payload.get("fileBase64")
         expected = payload.get("expectedData") or {}
+
+        print(json.dumps({
+            "stage": "request_received",
+            "fileName": file_name,
+            "mimeType": mime_type,
+            "hasExpectedData": bool(expected),
+        }))
 
         if not file_base64:
             return response(400, {"error": "fileBase64 es requerido"})
@@ -170,20 +119,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         file_bytes = base64.b64decode(file_base64)
         content_block = build_content_block(file_name=file_name, mime_type=mime_type, file_bytes=file_bytes)
 
-        main_raw = call_bedrock_json(
-            system_instruction="Extrae datos con precisión y responde solo JSON válido.",
-            user_prompt=MAIN_EXTRACTION_PROMPT,
-            content_block=content_block,
-        )
-
-        issuer_raw = call_bedrock_json(
-            system_instruction="Identifica el banco emisor con precisión y responde solo JSON válido.",
-            user_prompt=ISSUER_EXTRACTION_PROMPT,
-            content_block=content_block,
-        )
-
-        normalized = normalize_result(main_raw, issuer_raw, expected)
-        final_result = apply_business_rules(normalized, expected)
+        extracted_document, extraction_error = safe_extract_document(content_block)
+        normalized_document = normalize_document(extracted_document)
+        final_result = build_result(normalized_document, expected, extraction_error)
 
         validation_id = str(uuid.uuid4())
         now_iso = datetime.now(timezone.utc).isoformat()
@@ -192,15 +130,16 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             "validationId": validation_id,
             "processedAt": now_iso,
             "status": final_result["status"],
-            "documentType": "COMPROBANTE_PAGO",
+            "documentType": normalized_document["documentType"] or "COMPROBANTE_PAGO",
             "fields": final_result["fields"],
             "issues": final_result["issues"],
             "summary": final_result["summary"],
             "audit": final_result["audit"],
             "expectedData": expected,
+            "processingErrors": [extraction_error] if extraction_error else [],
+            "extractedDocument": normalized_document,
             "rawExtraction": {
-                "main": main_raw,
-                "issuer": issuer_raw,
+                "document": normalized_document,
             },
         }
 
@@ -216,12 +155,19 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         return response(200, result_payload)
 
-    except ValueError as e:
-        return response(400, {"error": str(e)})
-    except ClientError as e:
-        return response(500, {"error": "Error invocando servicios AWS", "details": str(e)})
-    except Exception as e:
-        return response(500, {"error": "Error interno inesperado", "details": str(e)})
+    except ValueError as error:
+        print(json.dumps({"stage": "value_error", "error": str(error)}))
+        return response(400, {"error": str(error)})
+    except ClientError as error:
+        print(json.dumps({"stage": "client_error", "error": str(error)}))
+        return response(500, {"error": "Error invocando servicios AWS", "details": str(error)})
+    except Exception as error:
+        print(json.dumps({
+            "stage": "unexpected_error",
+            "error": str(error),
+            "traceback": traceback.format_exc(),
+        }))
+        return response(500, {"error": "Error interno inesperado", "details": str(error)})
 
 
 def parse_event_body(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -290,12 +236,12 @@ def build_content_block(file_name: str, mime_type: str, file_bytes: bytes) -> Di
     raise ValueError(f"Formato no soportado: {mime_type}. Usa PDF, JPG, PNG o WEBP.")
 
 
-def call_bedrock_json(system_instruction: str, user_prompt: str, content_block: Dict[str, Any]) -> Dict[str, Any]:
+def extract_document(content_block: Dict[str, Any]) -> Dict[str, Any]:
     messages = [
         {
             "role": "user",
             "content": [
-                {"text": user_prompt},
+                {"text": GENERIC_EXTRACTION_PROMPT},
                 content_block,
             ],
         }
@@ -303,20 +249,34 @@ def call_bedrock_json(system_instruction: str, user_prompt: str, content_block: 
 
     result = bedrock.converse(
         modelId=BEDROCK_MODEL_ID,
-        system=[{"text": system_instruction}],
+        system=[{"text": "Extrae datos de comprobantes y responde solo JSON valido."}],
         messages=messages,
         inferenceConfig={
-            "maxTokens": 1200,
+            "maxTokens": 1800,
             "temperature": 0,
             "topP": 0.9,
         },
         additionalModelRequestFields={
-            "top_k": 50
+            "top_k": 50,
         },
     )
 
     text_output = extract_text_from_converse_response(result)
     return parse_json_from_model(text_output)
+
+
+def safe_extract_document(content_block: Dict[str, Any]) -> tuple[Dict[str, Any], Optional[str]]:
+    try:
+        extracted = extract_document(content_block)
+        print(json.dumps({"stage": "document_extraction_completed"}))
+        return extracted, None
+    except Exception as error:
+        print(json.dumps({
+            "stage": "document_extraction_failed",
+            "error": str(error),
+            "traceback": traceback.format_exc(),
+        }))
+        return build_empty_document(), str(error)
 
 
 def extract_text_from_converse_response(result: Dict[str, Any]) -> str:
@@ -327,8 +287,8 @@ def extract_text_from_converse_response(result: Dict[str, Any]) -> str:
             if "text" in item:
                 parts.append(item["text"])
         return "\n".join(parts).strip()
-    except Exception as e:
-        raise ValueError(f"No se pudo leer la respuesta de Bedrock: {e}")
+    except Exception as error:
+        raise ValueError(f"No se pudo leer la respuesta de Bedrock: {error}")
 
 
 def parse_json_from_model(text: str) -> Dict[str, Any]:
@@ -346,106 +306,144 @@ def parse_json_from_model(text: str) -> Dict[str, Any]:
         except json.JSONDecodeError:
             pass
 
-    raise ValueError(f"El modelo no devolvió JSON válido. Respuesta: {text[:500]}")
+    raise ValueError(f"El modelo no devolvio JSON valido. Respuesta: {text[:500]}")
 
 
-def normalize_result(
-    main_raw: Dict[str, Any],
-    issuer_raw: Dict[str, Any],
-    expected: Dict[str, Any],
-) -> Dict[str, Any]:
-    raw_reference = normalize_raw_reference(main_raw.get("rawReferenceIA") or main_raw.get("CompletereferenciaIA"))
-    normalized_reference = normalize_reference(raw_reference)
-    amount = normalize_amount(main_raw.get("montoIA"))
-    date_value = normalize_date(main_raw.get("fechaIA"))
+def build_empty_document() -> Dict[str, Any]:
+    return {
+        "documentType": None,
+        "issuerName": None,
+        "issuerBankName": None,
+        "issuerBankCode": None,
+        "senderName": None,
+        "senderAccount": None,
+        "recipientName": None,
+        "recipientAccount": None,
+        "destinationBankName": None,
+        "destinationBankCode": None,
+        "transactionDate": None,
+        "transactionTime": None,
+        "amount": None,
+        "currency": None,
+        "reference": None,
+        "operationNumber": None,
+        "paymentMethod": None,
+        "channel": None,
+        "countryCode": None,
+        "language": None,
+        "summary": None,
+        "notes": [],
+    }
+
+
+def normalize_document(raw: Dict[str, Any]) -> Dict[str, Any]:
+    document = build_empty_document()
+    document.update(raw or {})
+
+    return {
+        "documentType": normalize_text(document.get("documentType")),
+        "issuerName": normalize_text(document.get("issuerName")),
+        "issuerBankName": normalize_text(document.get("issuerBankName")),
+        "issuerBankCode": normalize_text(document.get("issuerBankCode")),
+        "senderName": normalize_text(document.get("senderName")),
+        "senderAccount": normalize_text(document.get("senderAccount")),
+        "recipientName": normalize_text(document.get("recipientName")),
+        "recipientAccount": normalize_text(document.get("recipientAccount")),
+        "destinationBankName": normalize_text(document.get("destinationBankName")),
+        "destinationBankCode": normalize_text(document.get("destinationBankCode")),
+        "transactionDate": normalize_date(document.get("transactionDate")),
+        "transactionTime": normalize_time(document.get("transactionTime")),
+        "amount": normalize_amount(document.get("amount")),
+        "currency": normalize_currency(document.get("currency")),
+        "reference": normalize_reference(document.get("reference")),
+        "operationNumber": normalize_text(document.get("operationNumber")),
+        "paymentMethod": normalize_text(document.get("paymentMethod")),
+        "channel": normalize_text(document.get("channel")),
+        "countryCode": normalize_country_code(document.get("countryCode")),
+        "language": normalize_text(document.get("language")),
+        "summary": normalize_text(document.get("summary")),
+        "notes": normalize_list(document.get("notes")),
+    }
+
+
+def build_result(document: Dict[str, Any], expected: Dict[str, Any], extraction_error: Optional[str]) -> Dict[str, Any]:
+    extracted_core_count = sum(
+        1 for value in [
+            document.get("amount"),
+            document.get("currency"),
+            document.get("transactionDate"),
+            document.get("reference") or document.get("operationNumber"),
+            document.get("senderName") or document.get("issuerName"),
+            document.get("recipientName"),
+            document.get("issuerBankName"),
+            document.get("destinationBankName"),
+            document.get("recipientAccount"),
+        ] if value not in (None, "", [])
+    )
+
+    issues = []
+
+    if extraction_error:
+        issues.append("La extraccion IA presento una falla parcial y el documento requiere revision manual.")
+    if document.get("amount") is None:
+        issues.append("No se detecto un monto confiable.")
+    if not document.get("transactionDate"):
+        issues.append("No se detecto una fecha confiable.")
+    if not document.get("reference") and not document.get("operationNumber"):
+        issues.append("No se detecto referencia ni numero de operacion.")
+    if not document.get("issuerBankName") and not document.get("destinationBankName"):
+        issues.append("No se detectaron bancos de origen o destino.")
+    if not document.get("senderName") and not document.get("recipientName") and not document.get("issuerName"):
+        issues.append("No se detectaron participantes claros del pago.")
+
+    if extracted_core_count >= 6 and not extraction_error:
+        status = "APPROVED"
+        summary = document.get("summary") or "Comprobante extraido correctamente."
+    elif extracted_core_count >= 3:
+        status = "OBSERVED"
+        summary = document.get("summary") or "Comprobante extraido parcialmente. Revise los campos detectados."
+    else:
+        status = "REJECTED"
+        summary = "No se pudo extraer suficiente informacion estructurada del comprobante."
 
     fields = {
-        "banco_emisorIA": normalize_text(issuer_raw.get("banco_emisorIA"), fallback="Otros Bancos"),
-        "issuerBankIdIA": normalize_text(issuer_raw.get("issuerBankIdIA")),
-        "CuentaBancariaIA": normalize_account(main_raw.get("CuentaBancariaIA")),
-        "banco_destinoIA": normalize_text(main_raw.get("banco_destinoIA")),
-        "fechaIA": date_value,
-        "rawReferenceIA": raw_reference,
-        "CompletereferenciaIA": normalized_reference,
-        "montoIA": amount,
+        "banco_emisorIA": document.get("issuerBankName"),
+        "issuerBankIdIA": document.get("issuerBankCode"),
+        "CuentaBancariaIA": document.get("recipientAccount"),
+        "banco_destinoIA": document.get("destinationBankName"),
+        "fechaIA": document.get("transactionDate"),
+        "rawReferenceIA": document.get("operationNumber") or document.get("reference"),
+        "CompletereferenciaIA": document.get("reference"),
+        "montoIA": document.get("amount"),
+        "documentType": document.get("documentType"),
+        "issuerName": document.get("issuerName"),
+        "senderName": document.get("senderName"),
+        "senderAccount": document.get("senderAccount"),
+        "recipientName": document.get("recipientName"),
+        "recipientAccount": document.get("recipientAccount"),
+        "sourceBank": document.get("issuerBankName"),
+        "destinationBank": document.get("destinationBankName"),
+        "currency": document.get("currency"),
+        "operationNumber": document.get("operationNumber"),
+        "paymentMethod": document.get("paymentMethod"),
+        "channel": document.get("channel"),
+        "countryCode": document.get("countryCode"),
     }
 
     audit = {
-        "main_confidence": normalize_confidence(main_raw.get("confidence")),
-        "issuer_confidence": normalize_confidence(issuer_raw.get("confidence")),
-        "detection_strategy": normalize_text(issuer_raw.get("detection_strategy"), fallback="unknown"),
-        "extraction_notes": normalize_list(main_raw.get("extraction_notes")),
+        "extraction_model": BEDROCK_MODEL_ID,
+        "extraction_strategy": "bedrock_converse_single_pass",
+        "extracted_field_count": extracted_core_count,
+        "extraction_notes": document.get("notes", []),
     }
-
-    return {
-        "fields": fields,
-        "audit": audit,
-        "expected": expected,
-    }
-
-
-def apply_business_rules(data: Dict[str, Any], expected: Dict[str, Any]) -> Dict[str, Any]:
-    fields = data["fields"]
-    audit = data["audit"]
-    issues = []
-
-    minimum_required = [
-        fields.get("fechaIA"),
-        fields.get("CompletereferenciaIA"),
-        fields.get("montoIA"),
-    ]
-    detected_core_count = sum(1 for x in minimum_required if x not in (None, "", []))
-
-    if detected_core_count < 2:
-        issues.append("No se detectaron suficientes datos mínimos del comprobante.")
-
-    if not fields.get("banco_emisorIA"):
-        issues.append("No fue posible identificar el banco emisor.")
-        fields["banco_emisorIA"] = "Otros Bancos"
-
-    if fields.get("montoIA") is None:
-        issues.append("No se identificó claramente el monto.")
-
-    if not fields.get("CompletereferenciaIA"):
-        issues.append("No se identificó claramente la referencia.")
-
-    if not fields.get("fechaIA"):
-        issues.append("No se identificó claramente la fecha del comprobante.")
-
-    expected_amount = normalize_amount(expected.get("montoEsperado"))
-    if expected_amount is not None and fields.get("montoIA") is not None:
-        if abs(fields["montoIA"] - expected_amount) > 0.01:
-            issues.append("El monto detectado no coincide con el monto esperado.")
-
-    expected_ref = normalize_reference(expected.get("referenciaEsperada"))
-    if expected_ref and fields.get("CompletereferenciaIA"):
-        if fields["CompletereferenciaIA"] != expected_ref:
-            issues.append("La referencia detectada no coincide con la referencia esperada.")
-
-    expected_bank = normalize_text(expected.get("bancoEsperado"))
-    if expected_bank and fields.get("banco_emisorIA"):
-        if normalize_text(fields["banco_emisorIA"]) != expected_bank:
-            issues.append("El banco emisor detectado no coincide con el banco esperado.")
-
-    main_conf = audit.get("main_confidence", 0)
-    issuer_conf = audit.get("issuer_confidence", 0)
-
-    if not issues and main_conf >= 0.75:
-        status = "APPROVED"
-        summary = "El comprobante fue extraído correctamente y cumple las validaciones base del MVP."
-    elif len(issues) <= 2 and (main_conf >= 0.45 or issuer_conf >= 0.45):
-        status = "OBSERVED"
-        summary = "El comprobante pudo procesarse, pero requiere revisión de algunos campos."
-    else:
-        status = "REJECTED"
-        summary = "El comprobante no cumple con los criterios mínimos de extracción y validación."
 
     return {
         "status": status,
-        "fields": fields,
-        "issues": issues,
         "summary": summary,
+        "issues": issues,
+        "fields": fields,
         "audit": audit,
+        "expected": expected,
     }
 
 
@@ -453,46 +451,100 @@ def normalize_text(value: Any, fallback: Optional[str] = None) -> Optional[str]:
     if value is None:
         return fallback
     text = str(value).strip()
-    if text == "" or text.lower() in {"null", "none", "no aplica", "n/a"}:
+    if not text or text.lower() in {"null", "none", "n/a", "no aplica", "unknown"}:
         return fallback
     return text
 
 
-def normalize_list(value: Any) -> list:
-    if isinstance(value, list):
-        return [str(v).strip() for v in value if str(v).strip()]
-    return []
+def normalize_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
 
 
-def normalize_account(value: Any) -> Optional[str]:
-    if value is None:
-        return None
-    text = re.sub(r"\D", "", str(value))
-    if len(text) < 10:
+def normalize_reference(value: Any) -> Optional[str]:
+    text = normalize_text(value)
+    if text is None:
         return None
     return text
 
 
-def normalize_raw_reference(value: Any) -> Optional[str]:
-    if value is None:
+def normalize_country_code(value: Any) -> Optional[str]:
+    text = normalize_text(value)
+    if text is None:
         return None
-    text = str(value).strip()
-    return text or None
+    cleaned = re.sub(r"[^A-Za-z]", "", text).upper()
+    if len(cleaned) == 2:
+        return cleaned
+    return None
 
 
-def normalize_reference(value: Any) -> Optional[str]:
-    if value is None:
+def normalize_time(value: Any) -> Optional[str]:
+    text = normalize_text(value)
+    if text is None:
         return None
 
-    digits = re.sub(r"\D", "", str(value))
-
-    if not digits:
+    match = re.search(r"\b(\d{1,2}):(\d{2})(?::(\d{2}))?\b", text)
+    if not match:
         return None
 
-    if len(digits) <= 8:
-        return digits
+    hour = int(match.group(1))
+    minute = int(match.group(2))
+    second = match.group(3)
 
-    return digits[-8:]
+    if hour > 23 or minute > 59:
+        return None
+
+    if second is not None:
+        if int(second) > 59:
+            return None
+        return f"{hour:02d}:{minute:02d}:{int(second):02d}"
+
+    return f"{hour:02d}:{minute:02d}"
+
+
+def normalize_date(value: Any) -> Optional[str]:
+    text = normalize_text(value)
+    if text is None:
+        return None
+
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+        return text
+
+    candidates = [
+        "%d/%m/%Y",
+        "%d-%m-%Y",
+        "%Y/%m/%d",
+        "%Y-%m-%d",
+        "%d/%m/%y",
+        "%d-%m-%y",
+        "%d.%m.%Y",
+        "%d.%m.%y",
+    ]
+
+    for date_format in candidates:
+        try:
+            dt = datetime.strptime(text, date_format)
+            return dt.strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+
+    return None
+
+
+def normalize_currency(value: Any) -> Optional[str]:
+    text = normalize_text(value)
+    if text is None:
+        return None
+
+    upper = text.upper()
+    if upper in {"VES", "USD", "EUR", "PEN", "COP", "CLP", "MXN", "ARS", "BRL"}:
+        return upper
+    if "S/" in text or "SOLES" in upper or "SOL" in upper:
+        return "PEN"
+    if "$" in text and "US" in upper:
+        return "USD"
+    return None
 
 
 def normalize_amount(value: Any) -> Optional[float]:
@@ -509,9 +561,17 @@ def normalize_amount(value: Any) -> Optional[float]:
     text = (
         text.replace("Bs.", "")
         .replace("Bs", "")
-        .replace("$", "")
         .replace("USD", "")
         .replace("VES", "")
+        .replace("EUR", "")
+        .replace("PEN", "")
+        .replace("COP", "")
+        .replace("CLP", "")
+        .replace("MXN", "")
+        .replace("ARS", "")
+        .replace("BRL", "")
+        .replace("S/", "")
+        .replace("$", "")
         .strip()
     )
 
@@ -520,9 +580,8 @@ def normalize_amount(value: Any) -> Optional[float]:
             text = text.replace(".", "").replace(",", ".")
         else:
             text = text.replace(",", "")
-    else:
-        if text.count(",") == 1 and text.count(".") == 0:
-            text = text.replace(",", ".")
+    elif text.count(",") == 1 and text.count(".") == 0:
+        text = text.replace(",", ".")
 
     text = re.sub(r"[^0-9.\-]", "", text)
     if not text:
@@ -532,48 +591,6 @@ def normalize_amount(value: Any) -> Optional[float]:
         return float(Decimal(text))
     except Exception:
         return None
-
-
-def normalize_confidence(value: Any) -> float:
-    try:
-        conf = float(value)
-        if conf < 0:
-            return 0.0
-        if conf > 1:
-            return 1.0
-        return conf
-    except Exception:
-        return 0.0
-
-
-def normalize_date(value: Any) -> Optional[str]:
-    if value is None:
-        return None
-
-    text = str(value).strip()
-    if not text:
-        return None
-
-    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
-        return text
-
-    candidates = [
-        "%d/%m/%Y",
-        "%d-%m-%Y",
-        "%Y/%m/%d",
-        "%Y-%m-%d",
-        "%d/%m/%y",
-        "%d-%m-%y",
-    ]
-
-    for fmt in candidates:
-        try:
-            dt = datetime.strptime(text, fmt)
-            return dt.strftime("%Y-%m-%d")
-        except ValueError:
-            continue
-
-    return text
 
 
 def persist_result_to_s3(

@@ -4,14 +4,23 @@
 
 :root {
   color-scheme: light;
+  --app-bg-top: #f6f4f1;
+  --app-bg-mid: #f2f0ed;
+  --app-bg-bottom: #f3f1ee;
+  --app-spot-a: rgba(234, 91, 49, 0.05);
+  --app-spot-b: rgba(74, 45, 20, 0.035);
+  --app-text: #2f2f33;
 }
 
 body {
   margin: 0;
   min-width: 320px;
-  font-family: 'Avenir Next', 'Helvetica Neue', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: radial-gradient(circle at top left, #f7f9fc 0%, #eef2f7 45%, #edf1f5 100%);
-  color: #172a3a;
+  font-family: Inter, 'Avenir Next', 'Helvetica Neue', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background:
+    radial-gradient(circle at top right, var(--app-spot-a) 0%, transparent 28%),
+    radial-gradient(circle at left 18%, var(--app-spot-b) 0%, transparent 32%),
+    linear-gradient(180deg, var(--app-bg-top) 0%, var(--app-bg-mid) 48%, var(--app-bg-bottom) 100%);
+  color: var(--app-text);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }

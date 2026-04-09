@@ -12,10 +12,6 @@ interface ComplementaryDoc {
 }
 
 interface LocationState {
-  depositor?: {
-    nombre: string;
-    cedula: string;
-  };
   extraction?: ValidationResult;
   comprobante?: {
     name: string;
@@ -34,7 +30,6 @@ export const ComplementaryDocumentsPage = () => {
   const [success, setSuccess] = useState('');
 
   const state = (location.state ?? {}) as LocationState;
-  const depositor = state.depositor;
   const extraction = state.extraction;
   const comprobante = state.comprobante;
 
@@ -43,7 +38,7 @@ export const ComplementaryDocumentsPage = () => {
     [docs],
   );
 
-  if (!depositor || !extraction || !comprobante) {
+  if (!extraction || !comprobante) {
     return <Navigate to="/validar" replace />;
   }
 
@@ -80,16 +75,16 @@ export const ComplementaryDocumentsPage = () => {
 
   return (
     <div className="w-full space-y-8">
-      <div className="overflow-hidden rounded-2xl border border-brand-100 bg-[#f5f6f8] shadow-premium">
+      <div className="overflow-hidden rounded-[2rem] border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,245,242,0.98))] shadow-premium">
         <div className="px-7 py-8 md:px-9">
           <SectionTitle
-            eyebrow="Gestión de pagos"
+            eyebrow="DANAConnect Demo"
             title="Documentos complementarios"
             description="Adjunte documentos adicionales para completar el registro del pago."
           />
 
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
-            <section className="space-y-4 rounded-xl border border-brand-100 bg-white p-4 shadow-soft">
+            <section className="space-y-4 rounded-[1.5rem] border border-border bg-white p-4 shadow-soft">
               <p className="text-sm font-semibold text-brand-900">Comprobante principal</p>
               <div className="rounded-md border border-border bg-bg px-4 py-3 text-sm text-brand-900">
                 <p className="font-semibold">{comprobante.name}</p>
@@ -97,7 +92,7 @@ export const ComplementaryDocumentsPage = () => {
               </div>
 
               <p className="text-sm font-semibold text-brand-900">Adjuntar soporte adicional</p>
-              <div className="rounded-xl border border-dashed border-brand-200 bg-bg px-4 py-5">
+              <div className="rounded-[1.25rem] border border-dashed border-brand-200 bg-bg px-4 py-5">
                 <p className="text-sm text-muted">
                   Puede subir carta de reclamo, cédula, póliza u otro documento de respaldo.
                 </p>
@@ -140,15 +135,14 @@ export const ComplementaryDocumentsPage = () => {
               </div>
             </section>
 
-            <section className="space-y-4 rounded-xl border border-brand-100 bg-white p-4 shadow-soft">
+            <section className="space-y-4 rounded-[1.5rem] border border-border bg-white p-4 shadow-soft">
               <p className="text-sm font-semibold text-brand-900">Resumen del trámite</p>
               <div className="grid gap-2 sm:grid-cols-2">
-                <ReadOnlyField label="Nombre" value={depositor.nombre} />
-                <ReadOnlyField label="Cédula" value={depositor.cedula} />
-                <ReadOnlyField label="Banco emisor" value={extraction.fields.banco_emisorIA ?? ''} />
-                <ReadOnlyField label="Banco destino" value={extraction.fields.banco_destinoIA ?? ''} />
-                <ReadOnlyField label="Monto" value={extraction.fields.montoIA != null ? String(extraction.fields.montoIA) : ''} />
-                <ReadOnlyField label="Referencia" value={extraction.fields.CompletereferenciaIA ?? extraction.fields.rawReferenceIA ?? ''} />
+                <ReadOnlyField label="Beneficiario" value={extraction.fields.recipientName ?? ''} />
+                <ReadOnlyField label="Banco origen" value={extraction.fields.sourceBank ?? extraction.fields.banco_emisorIA ?? ''} />
+                <ReadOnlyField label="Banco destino" value={extraction.fields.destinationBank ?? extraction.fields.banco_destinoIA ?? ''} />
+                <ReadOnlyField label="Monto" value={extraction.fields.montoIA != null ? `${extraction.fields.currency ?? ''} ${String(extraction.fields.montoIA)}`.trim() : ''} />
+                <ReadOnlyField label="Referencia" value={extraction.fields.reference ?? extraction.fields.CompletereferenciaIA ?? extraction.fields.operationNumber ?? extraction.fields.rawReferenceIA ?? ''} />
               </div>
 
               {error ? <p className="text-sm font-medium text-danger">{error}</p> : null}

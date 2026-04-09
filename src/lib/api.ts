@@ -1,10 +1,9 @@
 import { fileToBase64 } from './fileToBase64';
-import { extractReceiptWithLocalOcr } from './localOcrExtraction';
-import type { ExpectedData, ValidationResult, ValidationStatus } from '../types/validation';
+import type { ExpectedData, ExtractedDocument, ValidationResult, ValidationStatus } from '../types/validation';
 
-const API_URL = import.meta.env.VITE_VALIDATE_API_URL as string | undefined;
-const VALIDATION_MODE = (import.meta.env.VITE_VALIDATION_MODE as string | undefined)?.toLowerCase();
-const USE_REMOTE_API = VALIDATION_MODE === 'api';
+const LAMBDA_FUNCTION_URL =
+  (import.meta.env.VITE_LAMBDA_FUNCTION_URL as string | undefined)
+  ?? (import.meta.env.VITE_VALIDATE_API_URL as string | undefined);
 
 const normalizeStatus = (value: unknown): ValidationStatus => {
   const raw = String(value ?? '').trim().toUpperCase();
@@ -27,10 +26,85 @@ const safeRecord = (value: unknown): Record<string, unknown> => {
 const normalizeResult = (raw: unknown): ValidationResult => {
   const data = safeRecord(raw);
   const fields = safeRecord(data.fields);
+  const extractedDocument = safeRecord(data.extractedDocument);
 
   const validationId = String(data.validationId ?? data.id ?? `VAL-${Date.now()}`);
   const processedAt = String(data.processedAt ?? data.createdAt ?? new Date().toISOString());
   const status = normalizeStatus(data.status);
+
+  const normalizedDocument: ExtractedDocument = {
+    documentType: (extractedDocument.documentType as string | null | undefined) ?? null,
+    issuerName: (extractedDocument.issuerName as string | null | undefined) ?? null,
+    issuerBankName: (extractedDocument.issuerBankName as string | null | undefined) ?? null,
+    issuerBankCode: (extractedDocument.issuerBankCode as string | null | undefined) ?? null,
+    senderName: (extractedDocument.senderName as string | null | undefined) ?? null,
+    senderAccount: (extractedDocument.senderAccount as string | null | undefined) ?? null,
+    recipientName: (extractedDocument.recipientName as string | null | undefined) ?? null,
+    recipientAccount: (extractedDocument.recipientAccount as string | null | undefined) ?? null,
+    destinationBankName: (extractedDocument.destinationBankName as string | null | undefined) ?? null,
+    destinationBankCode: (extractedDocument.destinationBankCode as string | null | undefined) ?? null,
+    transactionDate: (extractedDocument.transactionDate as string | null | undefined) ?? null,
+    transactionTime: (extractedDocument.transactionTime as string | null | undefined) ?? null,
+    amount: (extractedDocument.amount as number | null | undefined) ?? null,
+    currency: (extractedDocument.currency as string | null | undefined) ?? null,
+    reference: (extractedDocument.reference as string | null | undefined) ?? null,
+    operationNumber: (extractedDocument.operationNumber as string | null | undefined) ?? null,
+    paymentMethod: (extractedDocument.paymentMethod as string | null | undefined) ?? null,
+    channel: (extractedDocument.channel as string | null | undefined) ?? null,
+    countryCode: (extractedDocument.countryCode as string | null | undefined) ?? null,
+    language: (extractedDocument.language as string | null | undefined) ?? null,
+    summary: (extractedDocument.summary as string | null | undefined) ?? null,
+    notes: asArrayOfStrings(extractedDocument.notes),
+  };
+
+  const normalizedDocumentType =
+    (fields.documentType as string | null | undefined)
+    ?? normalizedDocument.documentType
+    ?? null;
+  const normalizedIssuerName =
+    (fields.issuerName as string | null | undefined)
+    ?? normalizedDocument.issuerName
+    ?? null;
+  const normalizedRecipientName =
+    (fields.recipientName as string | null | undefined)
+    ?? normalizedDocument.recipientName
+    ?? null;
+  const normalizedSourceBank =
+    (fields.sourceBank as string | null | undefined)
+    ?? normalizedDocument.issuerBankName
+    ?? null;
+  const normalizedDestinationBank =
+    (fields.destinationBank as string | null | undefined)
+    ?? normalizedDocument.destinationBankName
+    ?? null;
+  const normalizedRecipientAccount =
+    (fields.recipientAccount as string | null | undefined)
+    ?? normalizedDocument.recipientAccount
+    ?? null;
+  const normalizedAmount =
+    (fields.amount as number | null | undefined)
+    ?? (fields.montoIA as number | null | undefined)
+    ?? normalizedDocument.amount
+    ?? null;
+  const normalizedCurrency =
+    (fields.currency as string | null | undefined)
+    ?? normalizedDocument.currency
+    ?? null;
+  const normalizedTransactionDate =
+    (fields.transactionDate as string | null | undefined)
+    ?? (fields.fechaIA as string | null | undefined)
+    ?? normalizedDocument.transactionDate
+    ?? null;
+  const normalizedReference =
+    (fields.reference as string | null | undefined)
+    ?? (fields.CompletereferenciaIA as string | null | undefined)
+    ?? normalizedDocument.reference
+    ?? null;
+  const normalizedOperationNumber =
+    (fields.operationNumber as string | null | undefined)
+    ?? (fields.rawReferenceIA as string | null | undefined)
+    ?? normalizedDocument.operationNumber
+    ?? null;
 
   return {
     validationId,
@@ -40,198 +114,43 @@ const normalizeResult = (raw: unknown): ValidationResult => {
     summary: String(data.summary ?? data.message ?? 'Resultado de validación procesado correctamente.'),
     issues: asArrayOfStrings(data.issues),
     fields: {
-      banco_emisorIA: (fields.banco_emisorIA as string | null | undefined) ?? null,
+      documentType: normalizedDocumentType,
+      issuerName: normalizedIssuerName,
+      recipientName: normalizedRecipientName,
+      sourceBank: normalizedSourceBank,
+      destinationBank: normalizedDestinationBank,
+      recipientAccount: normalizedRecipientAccount,
+      amount: normalizedAmount,
+      currency: normalizedCurrency,
+      transactionDate: normalizedTransactionDate,
+      reference: normalizedReference,
+      operationNumber: normalizedOperationNumber,
+      banco_emisorIA: (fields.banco_emisorIA as string | null | undefined) ?? normalizedSourceBank,
       issuerBankIdIA: (fields.issuerBankIdIA as string | null | undefined) ?? null,
-      CuentaBancariaIA: (fields.CuentaBancariaIA as string | null | undefined) ?? null,
-      banco_destinoIA: (fields.banco_destinoIA as string | null | undefined) ?? null,
-      fechaIA: (fields.fechaIA as string | null | undefined) ?? null,
-      rawReferenceIA: (fields.rawReferenceIA as string | null | undefined) ?? null,
-      CompletereferenciaIA: (fields.CompletereferenciaIA as string | null | undefined) ?? null,
-      montoIA: (fields.montoIA as number | null | undefined) ?? null,
+      CuentaBancariaIA: (fields.CuentaBancariaIA as string | null | undefined) ?? normalizedRecipientAccount,
+      banco_destinoIA: (fields.banco_destinoIA as string | null | undefined) ?? normalizedDestinationBank,
+      fechaIA: normalizedTransactionDate,
+      rawReferenceIA: (fields.rawReferenceIA as string | null | undefined) ?? normalizedOperationNumber,
+      CompletereferenciaIA: (fields.CompletereferenciaIA as string | null | undefined) ?? normalizedReference,
+      montoIA: (fields.montoIA as number | null | undefined) ?? normalizedAmount,
+      senderName: (fields.senderName as string | null | undefined) ?? normalizedDocument.senderName ?? null,
+      senderAccount: (fields.senderAccount as string | null | undefined) ?? normalizedDocument.senderAccount ?? null,
+      paymentMethod: (fields.paymentMethod as string | null | undefined) ?? normalizedDocument.paymentMethod ?? null,
+      channel: (fields.channel as string | null | undefined) ?? normalizedDocument.channel ?? null,
+      countryCode: (fields.countryCode as string | null | undefined) ?? normalizedDocument.countryCode ?? null,
     },
     audit: data.audit as ValidationResult['audit'] | undefined,
     expectedData: data.expectedData as ValidationResult['expectedData'] | undefined,
+    processingErrors: asArrayOfStrings(data.processingErrors),
+    extractedDocument: normalizedDocument,
     rawExtraction: data.rawExtraction as ValidationResult['rawExtraction'] | undefined,
     storage: data.storage as ValidationResult['storage'] | undefined,
   };
 };
 
-const softenAutoStatus = (result: ValidationResult, expectedData?: ExpectedData): ValidationResult => {
-  const hasManualValidationInput = Boolean(
-    expectedData?.nombreDepositante?.trim() || expectedData?.cedulaDepositante?.trim(),
-  );
-
-  if (hasManualValidationInput || result.status !== 'REJECTED') {
-    return result;
-  }
-
-  return {
-    ...result,
-    status: 'OBSERVED',
-    summary: 'Pago en revisión.',
-  };
-};
-
-const normalizeReference = (value: string | undefined): string | null => {
-  if (!value) return null;
-  const digits = value.replace(/\D/g, '');
-  if (digits.length < 8) return null;
-  return digits.slice(-8);
-};
-
-type LocalExtraction = Awaited<ReturnType<typeof extractReceiptWithLocalOcr>>;
-
-const validateDocumentAdmission = (localExtraction: LocalExtraction): void => {
-  const text = (localExtraction.rawText ?? '').trim();
-  const extracted = localExtraction.fields;
-
-  const hasDateStructure = Boolean(extracted.fechaIA) || /\b\d{1,2}[\/\-\.]\d{1,2}[\/\-\.](?:\d{2}|\d{4})\b/.test(text);
-  const hasAmountStructure = extracted.montoIA !== null || /\b\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})\b/.test(text);
-  const hasBankAccountStructure =
-    Boolean(extracted.CuentaBancariaIA)
-    || /\b\d{20}\b/.test(text)
-    || /\b\d{4}[*xX•._,·]{2,}\d{3,}\b/.test(text);
-  const hasReferenceStructure =
-    Boolean(extracted.rawReferenceIA ?? extracted.CompletereferenciaIA)
-    || /(?:n\s*[°ºo]?\s*de\s*recibo|numero\s*de\s*recibo|nro\.?\s*de\s*recibo|referenc|ref\b)/i.test(text);
-
-  const structuralScore = [
-    hasDateStructure,
-    hasAmountStructure,
-    hasBankAccountStructure,
-    hasReferenceStructure,
-  ].filter(Boolean).length;
-  const extractedCoreFields = [
-    extracted.CuentaBancariaIA,
-    extracted.montoIA,
-    extracted.fechaIA,
-    extracted.rawReferenceIA ?? extracted.CompletereferenciaIA,
-    extracted.banco_emisorIA,
-  ].filter((value) => value !== null && value !== undefined && String(value).trim() !== '').length;
-
-  if (!text || text.length < 40) {
-    throw new Error('El comprobante no es legible. Carga una imagen o PDF nítido donde se vea el texto.');
-  }
-
-  if (structuralScore < 2) {
-    throw new Error('El archivo no cumple estructura de comprobante venezolano (fecha, monto, cuenta, referencia).');
-  }
-
-  if (localExtraction.confidence < 0.45 && (extractedCoreFields < 2 || structuralScore < 3)) {
-    throw new Error('La calidad del comprobante es insuficiente. Sube una versión más nítida y completa.');
-  }
-};
-
-const simulateLocalValidation = async (
-  file: File,
-  expectedData?: ExpectedData,
-  preExtracted?: LocalExtraction,
-): Promise<ValidationResult> => {
-  const localExtraction = preExtracted ?? await extractReceiptWithLocalOcr(file);
-  const extracted = localExtraction.fields;
-  const hasManualValidationInput = Boolean(
-    expectedData?.nombreDepositante?.trim() || expectedData?.cedulaDepositante?.trim(),
-  );
-
-  const rawReference = extracted.rawReferenceIA ?? extracted.CompletereferenciaIA ?? null;
-  const completeReference = normalizeReference(rawReference ?? undefined);
-  const montoIA = extracted.montoIA ?? null;
-  const fechaIA = extracted.fechaIA ?? null;
-  const CuentaBancariaIA = extracted.CuentaBancariaIA ?? null;
-  const bancoDestinoIA = extracted.banco_destinoIA ?? 'Mercantil Banco';
-
-  const issues: string[] = [];
-
-  if (!fechaIA) {
-    issues.push('No se pudo extraer fecha de forma confiable del documento.');
-  }
-  if (!completeReference) {
-    issues.push('No se pudo extraer la referencia completa del documento.');
-  }
-  if (!CuentaBancariaIA) {
-    issues.push('No se pudo extraer la cuenta destino del documento.');
-  }
-  if (montoIA === null) {
-    issues.push('No se pudo extraer el monto del documento.');
-  }
-  if (!extracted.banco_emisorIA) {
-    issues.push('No se pudo extraer el banco emisor del documento.');
-  }
-  if (!extracted.issuerBankIdIA) {
-    issues.push('No se pudo extraer el código del banco emisor del documento.');
-  }
-
-  // En carga automática (sin datos manuales), no marcar como rechazado de inmediato.
-  const status: ValidationStatus = hasManualValidationInput
-    ? issues.length === 0
-      ? 'APPROVED'
-      : issues.length <= 2
-        ? 'OBSERVED'
-        : 'REJECTED'
-    : issues.length === 0
-      ? 'APPROVED'
-      : 'OBSERVED';
-  const summaryByStatus: Record<ValidationStatus, string> = {
-    APPROVED: 'Pago validado correctamente.',
-    OBSERVED: 'Pago en revisión.',
-    REJECTED: 'Pago rechazado.',
-  };
-
-  return {
-    validationId: `LOCAL-${Date.now()}`,
-    processedAt: new Date().toISOString(),
-    status,
-    documentType: file.type === 'application/pdf' ? 'Comprobante PDF' : 'Comprobante imagen',
-    summary: summaryByStatus[status],
-    issues,
-    fields: {
-      banco_emisorIA: extracted.banco_emisorIA ?? null,
-      issuerBankIdIA: extracted.issuerBankIdIA ?? null,
-      CuentaBancariaIA,
-      banco_destinoIA: bancoDestinoIA,
-      fechaIA,
-      rawReferenceIA: rawReference,
-      CompletereferenciaIA: completeReference,
-      montoIA,
-    },
-    audit: {
-      main_confidence: localExtraction.confidence,
-      issuer_confidence: localExtraction.confidence,
-      detection_strategy: localExtraction.detectionStrategy,
-      extraction_notes: localExtraction.notes,
-    },
-    expectedData,
-    rawExtraction: {
-      main: {
-        CuentaBancariaIA,
-        banco_destinoIA: bancoDestinoIA,
-        fechaIA,
-        rawReferenceIA: rawReference,
-        montoIA,
-        confidence: localExtraction.confidence,
-        extraction_notes: localExtraction.notes,
-      },
-      issuer: {
-        banco_emisorIA: extracted.banco_emisorIA ?? 'Otros Bancos',
-        issuerBankIdIA: extracted.issuerBankIdIA ?? null,
-        confidence: localExtraction.confidence,
-        detection_strategy: localExtraction.detectionStrategy,
-      },
-    },
-  };
-};
-
 export const validateReceipt = async (file: File, expectedData?: ExpectedData): Promise<ValidationResult> => {
-  const admissionExtraction = await extractReceiptWithLocalOcr(file);
-  validateDocumentAdmission(admissionExtraction);
-
-  if (!USE_REMOTE_API) {
-    const localResult = await simulateLocalValidation(file, expectedData, admissionExtraction);
-    return softenAutoStatus(localResult, expectedData);
-  }
-
-  if (!API_URL) {
-    throw new Error('No se configuró VITE_VALIDATE_API_URL en el entorno.');
+  if (!LAMBDA_FUNCTION_URL) {
+    throw new Error('No se configuró VITE_LAMBDA_FUNCTION_URL en el entorno.');
   }
 
   const fileBase64 = await fileToBase64(file);
@@ -245,7 +164,7 @@ export const validateReceipt = async (file: File, expectedData?: ExpectedData): 
     },
   };
 
-  const response = await fetch(API_URL, {
+  const response = await fetch(LAMBDA_FUNCTION_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -267,6 +186,5 @@ export const validateReceipt = async (file: File, expectedData?: ExpectedData): 
     );
   }
 
-  const remoteResult = normalizeResult(data);
-  return softenAutoStatus(remoteResult, expectedData);
+  return normalizeResult(data);
 };

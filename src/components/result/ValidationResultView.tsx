@@ -24,39 +24,19 @@ const issueStyle = (status: ValidationResult['status']): string => {
   return 'border-border bg-bg';
 };
 
-const toReference8 = (value: string | null | undefined): string | null => {
-  if (!value) return null;
-  const digits = value.replace(/\D/g, '');
-  if (digits.length < 8) return null;
-  return digits.slice(-8);
-};
-
 export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
   const [copied, setCopied] = useState(false);
-  const reference8 = toReference8(result.fields.CompletereferenciaIA ?? result.fields.rawReferenceIA);
   const statusDescription: Record<ValidationResult['status'], string> = {
-    APPROVED: 'Pago validado correctamente.',
-    OBSERVED: 'Pago en revisión. Verifique los datos extraídos.',
-    REJECTED: 'Pago rechazado. Revise el comprobante cargado.',
+    APPROVED: 'Comprobante extraído correctamente.',
+    OBSERVED: 'Comprobante extraído parcialmente. Verifique los datos detectados.',
+    REJECTED: 'No se extrajo suficiente información confiable del comprobante.',
   };
 
-  const promptExtractionJson = JSON.stringify(
-    {
-      CuentaBancariaIA: result.fields.CuentaBancariaIA ?? null,
-      banco_destinoIA: result.fields.banco_destinoIA ?? null,
-      montoIA: result.fields.montoIA ?? null,
-      fechaIA: result.fields.fechaIA ?? null,
-      CompletereferenciaIA: result.fields.CompletereferenciaIA ?? null,
-      banco_emisorIA: result.fields.banco_emisorIA ?? 'Otros Bancos',
-      issuerBankIdIA: result.fields.issuerBankIdIA ?? null,
-    },
-    null,
-    2,
-  );
+  const extractionJson = JSON.stringify(result.extractedDocument ?? result.rawExtraction?.document ?? {}, null, 2);
 
   const copyJson = async () => {
     try {
-      await navigator.clipboard.writeText(promptExtractionJson);
+      await navigator.clipboard.writeText(extractionJson);
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch {
@@ -82,13 +62,22 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
       <section className="rounded-lg border border-border bg-white p-6 shadow-soft">
         <h4 className="text-base font-semibold text-brand-900">Datos extraídos</h4>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <FieldCard label="Banco emisor" value={displayValue(result.fields.banco_emisorIA)} />
-          <FieldCard label="Código banco emisor" value={displayValue(result.fields.issuerBankIdIA)} />
-          <FieldCard label="Cuenta destino" value={displayValue(result.fields.CuentaBancariaIA)} />
-          <FieldCard label="Banco destino" value={displayValue(result.fields.banco_destinoIA)} />
-          <FieldCard label="Fecha" value={displayValue(result.fields.fechaIA)} />
-          <FieldCard label="Referencia" value={displayValue(reference8)} />
+          <FieldCard label="Beneficiario" value={displayValue(result.fields.recipientName)} />
+          <FieldCard label="Banco origen" value={displayValue(result.fields.sourceBank ?? result.fields.banco_emisorIA)} />
+          <FieldCard label="Banco destino" value={displayValue(result.fields.destinationBank ?? result.fields.banco_destinoIA)} />
+          <FieldCard label="Cuenta destino" value={displayValue(result.fields.recipientAccount ?? result.fields.CuentaBancariaIA)} />
           <FieldCard label="Monto" value={displayValue(result.fields.montoIA)} />
+          <FieldCard label="Moneda" value={displayValue(result.fields.currency)} />
+          <FieldCard label="Fecha" value={displayValue(result.fields.fechaIA)} />
+          <FieldCard
+            label="Referencia"
+            value={displayValue(
+              result.fields.reference
+              ?? result.fields.CompletereferenciaIA
+              ?? result.fields.operationNumber
+              ?? result.fields.rawReferenceIA,
+            )}
+          />
         </div>
       </section>
 
@@ -97,6 +86,19 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
           <h4 className="text-base font-semibold text-brand-900">Observaciones</h4>
           <ul className="mt-3 space-y-2">
             {result.issues.map((issue) => (
+              <li key={issue} className="rounded-md border border-border bg-white px-4 py-3 text-sm text-muted">
+                {issue}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {result.processingErrors && result.processingErrors.length > 0 ? (
+        <section className="rounded-lg border border-warning/30 bg-warning/5 p-6 shadow-soft">
+          <h4 className="text-base font-semibold text-brand-900">Detalles técnicos</h4>
+          <ul className="mt-3 space-y-2">
+            {result.processingErrors.map((issue) => (
               <li key={issue} className="rounded-md border border-border bg-white px-4 py-3 text-sm text-muted">
                 {issue}
               </li>
@@ -119,7 +121,7 @@ export const ValidationResultView = ({ result }: ValidationResultViewProps) => {
             >
               {copied ? 'JSON copiado' : 'Copiar JSON'}
             </button>
-            <pre className="max-h-96 overflow-auto rounded-md border border-border bg-bg p-4 text-xs text-brand-900">{promptExtractionJson}</pre>
+            <pre className="max-h-96 overflow-auto rounded-md border border-border bg-bg p-4 text-xs text-brand-900">{extractionJson}</pre>
           </div>
         </details>
       </section>

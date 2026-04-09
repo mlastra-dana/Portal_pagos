@@ -1,8 +1,8 @@
-# Portal de Validación de Comprobantes
+# Portal de Extracción de Comprobantes
 
 Frontend corporativo desarrollado con React + Vite + TypeScript + TailwindCSS, preparado para AWS Amplify Hosting.
 
-La validación principal se conecta a un API Gateway real que invoca una Lambda para extraer y validar datos del comprobante.
+La aplicación se conecta directo a una Lambda mediante Function URL para extraer información estructurada de cualquier comprobante de pago.
 
 ## Requisitos
 
@@ -14,12 +14,9 @@ La validación principal se conecta a un API Gateway real que invoca una Lambda 
 Crea un archivo `.env` (puedes copiar desde `.env.example`) con:
 
 ```env
-VITE_VALIDATE_API_URL=https://y2fkkc2ru5.execute-api.us-east-1.amazonaws.com/validate
-VITE_VALIDATION_MODE=mock
+VITE_LAMBDA_FUNCTION_URL=https://tu-function-url.lambda-url.us-east-1.on.aws/
 ```
-
-- `VITE_VALIDATION_MODE=mock`: ejecuta extracción simulada local (sin invocar Lambda).
-- `VITE_VALIDATION_MODE=api`: usa API Gateway + Lambda real.
+- `VITE_LAMBDA_FUNCTION_URL`: endpoint directo de la Lambda Function URL usado por el frontend.
 
 ## Instalación
 
@@ -51,23 +48,23 @@ npm run preview
 
 1. El usuario carga un archivo (`png`, `jpg`, `jpeg`, `webp`, `pdf`).
 2. El frontend convierte el archivo a base64 en navegador (`FileReader.readAsDataURL`).
-3. El frontend envía `fileName`, `mimeType`, `fileBase64` y `expectedData` opcional al API Gateway.
+3. El frontend envía `fileName`, `mimeType`, `fileBase64` y `expectedData` opcional directo a la Function URL de Lambda.
 4. Se muestra loading mientras responde Lambda.
 5. Se renderiza el resultado con:
    - estado
    - resumen
-   - campos extraídos
+   - campos extraídos del comprobante
    - issues/observaciones
    - JSON completo de extracción (desplegable + copiar JSON)
 
 ## Estructura relevante
 
 ```text
-prompts/
-  main_extraction.prompt.txt
-  issuer_extraction.prompt.txt
+amplify/
+  functions/Validarcomprobante/
+    handler.py
+    resource.ts
 src/
-  config/idpRules.ts
   components/result/ValidationResultView.tsx
   components/ui/UploadDropzone.tsx
   hooks/useFileUpload.ts
@@ -77,14 +74,13 @@ src/
   types/validation.ts
 ```
 
-Los archivos en `prompts/` documentan la estructura objetivo del JSON y las reglas de extracción.
-`src/config/idpRules.ts` centraliza reglas que usa el IDP frontend (OCR local).
+La extracción ocurre siempre en Lambda. El frontend no realiza OCR ni validación local.
 
 ## Despliegue en AWS Amplify Hosting
 
 1. Crea una app en AWS Amplify y conecta este repositorio.
 2. Configura la variable de entorno en Amplify:
-   - `VITE_VALIDATE_API_URL=https://y2fkkc2ru5.execute-api.us-east-1.amazonaws.com/validate`
+   - `VITE_LAMBDA_FUNCTION_URL=https://tu-function-url.lambda-url.us-east-1.on.aws/`
 3. Build recomendado:
 
 ```yml
@@ -108,6 +104,6 @@ frontend:
 
 ## Notas
 
-- La validación principal ya no usa mocks.
-- El historial puede seguir usando datos mock como vista auxiliar.
-- El frontend está listo para operar en Amplify contra API Gateway + Lambda.
+- El frontend siempre llama al Lambda; no existe camino local de extracción.
+- La Lambda devuelve campos normalizados y el JSON estructurado completo del comprobante.
+- El flujo está pensado para comprobantes de distintos bancos, países y formatos, no solo Venezuela.
