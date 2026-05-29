@@ -72,12 +72,12 @@ export const ValidatePage = () => {
     setTechnicalError('');
 
     if (!uploadedFile) {
-      setFormError('Debes cargar un comprobante para iniciar la validación.');
+      setFormError('Debe cargar un comprobante para iniciar la validación.');
       return;
     }
 
     if (!result) {
-      setFormError('Primero debemos terminar la extracción del comprobante.');
+      setFormError('Primero debe finalizar la extracción del comprobante.');
       return;
     }
 
@@ -106,7 +106,7 @@ export const ValidatePage = () => {
           <SectionTitle
             eyebrow="Example Company"
             title="Extracción de comprobante"
-            description="Carga un comprobante y deja que el motor de extracción complete los datos detectados y el JSON estructurado."
+            description="Cargue un comprobante y permita que el motor de extracción complete los datos detectados y el JSON estructurado."
           />
 
           <div className="mt-5 grid gap-4 lg:grid-cols-2">

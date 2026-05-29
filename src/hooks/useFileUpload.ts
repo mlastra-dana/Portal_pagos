@@ -28,7 +28,7 @@ export const useFileUpload = () => {
 
     const isAccepted = ACCEPTED_TYPES.includes(file.type);
     if (!isAccepted) {
-      setError('Formato no permitido. Carga un archivo JPG, JPEG, PNG, WEBP o PDF.');
+      setError('Formato no permitido. Cargue un archivo JPG, JPEG, PNG, WEBP o PDF.');
       return;
     }
 
