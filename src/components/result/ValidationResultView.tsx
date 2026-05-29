@@ -47,7 +47,7 @@ export const ValidationResultView = ({ result, showDataSection = true }: Validat
 
   return (
     <div className="space-y-6">
-      <section className="rounded-lg border border-[#d8ccc1] bg-white p-6 shadow-soft">
+      <section className="rounded-lg border border-border bg-white p-6 shadow-soft">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-2">
             <StatusBadge status={result.status} />
@@ -66,7 +66,7 @@ export const ValidationResultView = ({ result, showDataSection = true }: Validat
           <h4 className="text-base font-semibold text-text">Observaciones</h4>
           <ul className="mt-3 space-y-2">
             {result.issues.map((issue) => (
-              <li key={issue} className="rounded-md border border-[#d8ccc1] bg-white px-4 py-3 text-sm text-muted">
+              <li key={issue} className="rounded-md border border-border bg-white px-4 py-3 text-sm text-muted">
                 {issue}
               </li>
             ))}
@@ -79,7 +79,7 @@ export const ValidationResultView = ({ result, showDataSection = true }: Validat
           <h4 className="text-base font-semibold text-text">Detalles técnicos</h4>
           <ul className="mt-3 space-y-2">
             {result.processingErrors.map((issue) => (
-              <li key={issue} className="rounded-md border border-[#d8ccc1] bg-white px-4 py-3 text-sm text-muted">
+              <li key={issue} className="rounded-md border border-border bg-white px-4 py-3 text-sm text-muted">
                 {issue}
               </li>
             ))}
@@ -87,7 +87,7 @@ export const ValidationResultView = ({ result, showDataSection = true }: Validat
         </section>
       ) : null}
 
-      <section className="rounded-lg border border-[#d8ccc1] bg-white p-6 shadow-soft">
+      <section className="rounded-lg border border-border bg-white p-6 shadow-soft">
         <details className="group">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-semibold text-text">
             JSON de extracción
@@ -101,7 +101,7 @@ export const ValidationResultView = ({ result, showDataSection = true }: Validat
             >
               {copied ? 'JSON copiado' : 'Copiar JSON'}
             </button>
-            <pre className="max-h-96 overflow-auto rounded-md border border-[#d8ccc1] bg-white p-4 text-xs text-text">{extractionJson}</pre>
+            <pre className="max-h-96 overflow-auto rounded-md border border-border bg-white p-4 text-xs text-text">{extractionJson}</pre>
           </div>
         </details>
       </section>
@@ -113,7 +113,7 @@ export const ExtractionDataCards = ({ result }: { result: ValidationResult }) =>
   const cards = getFieldCards(result);
 
   return (
-    <section className="rounded-lg border border-[#d8ccc1] bg-white p-6 shadow-soft">
+    <section className="rounded-lg border border-border bg-white p-6 shadow-soft">
       <h4 className="text-base font-semibold text-text">Datos extraídos</h4>
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => (
@@ -172,7 +172,7 @@ const displayCurrency = (value: string | null | undefined): string => {
 
 const FieldCard = ({ label, value }: { label: string; value: string }) => {
   return (
-    <div className="rounded-md border border-[#d8ccc1] bg-white px-4 py-3">
+    <div className="rounded-md border border-border bg-white px-4 py-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
       <p className="mt-1 break-all text-sm font-medium text-text">{value}</p>
     </div>

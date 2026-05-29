@@ -79,7 +79,7 @@ export const ComplementaryDocumentsPage = () => {
       <div className="overflow-hidden rounded-[2rem] border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(255,255,255,0.97))] shadow-premium">
         <div className="px-7 py-8 md:px-9">
           <SectionTitle
-            eyebrow="DANAConnect Demo"
+            eyebrow="Example Company"
             title="Documentos adjuntos"
             description="Puede subir carta de reclamo, cédula, póliza u otro documento de respaldo relacionado con este pago."
           />
@@ -88,7 +88,7 @@ export const ComplementaryDocumentsPage = () => {
             <Link to="/validar" className="inline-flex">
               <button
                 type="button"
-                className="inline-flex items-center justify-center rounded-full border border-[#d8ccc1] bg-white px-4 py-2 text-sm font-semibold text-brand-500 transition hover:bg-brand-50"
+                className="inline-flex items-center justify-center rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold text-brand-500 transition hover:bg-brand-50"
               >
                 Volver
               </button>
@@ -96,9 +96,9 @@ export const ComplementaryDocumentsPage = () => {
           </div>
 
           <div className="mt-5">
-            <section className="space-y-4 rounded-[1.5rem] border border-[#d8ccc1] bg-white p-4 shadow-soft">
+            <section className="space-y-4 rounded-[1.5rem] border border-border bg-white p-4 shadow-soft">
               <p className="text-sm font-semibold text-brand-800">Comprobante principal</p>
-              <div className="rounded-md border border-[#d8ccc1] bg-white px-4 py-3 text-sm text-text">
+              <div className="rounded-md border border-border bg-white px-4 py-3 text-sm text-text">
                 <p className="font-semibold">{comprobante.name}</p>
                 <p className="text-muted">{formatFileSize(comprobante.size)} · {comprobante.type}</p>
               </div>
@@ -121,11 +121,11 @@ export const ComplementaryDocumentsPage = () => {
                 <p className="mt-2 text-xs text-muted">Formatos permitidos: PDF, JPG, PNG, WEBP, DOC, DOCX.</p>
               </div>
 
-              <div className="space-y-2 rounded-md border border-[#d8ccc1] bg-white p-3">
+              <div className="space-y-2 rounded-md border border-border bg-white p-3">
                 <p className="text-sm font-semibold text-brand-800">Archivos adjuntos ({docs.length})</p>
                 {docs.length === 0 ? <p className="text-sm text-muted">Sin documentos complementarios.</p> : null}
                 {docs.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-3 rounded-md border border-[#d8ccc1] bg-white px-3 py-2">
+                  <div key={item.id} className="flex items-center justify-between gap-3 rounded-md border border-border bg-white px-3 py-2">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-text">{item.file.name}</p>
                       <p className="text-xs text-muted">{formatFileSize(item.file.size)}</p>
@@ -133,7 +133,7 @@ export const ComplementaryDocumentsPage = () => {
                     <button
                       type="button"
                       aria-label={`Quitar ${item.file.name}`}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8ccc1] bg-white text-lg font-semibold leading-none text-brand-600 transition hover:border-brand-300 hover:bg-brand-50"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-white text-lg font-semibold leading-none text-brand-600 transition hover:border-brand-300 hover:bg-brand-50"
                       onClick={() => removeDoc(item.id)}
                     >
                       ×

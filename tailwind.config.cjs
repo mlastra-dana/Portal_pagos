@@ -5,24 +5,25 @@ module.exports = {
     extend: {
       colors: {
         brand: {
-          50: '#fff7f3',
-          100: '#ffe8dd',
-          200: '#ffd1bc',
-          300: '#ffb18a',
-          400: '#ff9466',
-          500: '#ef6f43',
-          600: '#dd5b34',
-          700: '#bf4929',
-          800: '#9b3e28',
-          900: '#7f3525'
+          50: '#f3edff',
+          100: '#eadfff',
+          200: '#d8c2ff',
+          300: '#a779ff',
+          400: '#8f56f2',
+          500: '#6d28e0',
+          600: '#5f1ec9',
+          700: '#4b16b6',
+          800: '#331080',
+          900: '#0f0f1f'
         },
-        bg: '#efe8e1',
+        accent: '#a779ff',
+        bg: '#f7f4ff',
         surface: '#ffffff',
-        text: '#35363a',
-        muted: '#7a7d84',
-        border: '#ddd2c8',
+        text: '#0f0f1f',
+        muted: '#596070',
+        border: '#ded4ef',
         success: '#0f766e',
-        warning: '#b76e00',
+        warning: '#9a5b00',
         danger: '#b42318'
       },
       borderRadius: {
@@ -32,9 +33,9 @@ module.exports = {
         xl: '1rem'
       },
       boxShadow: {
-        soft: '0 2px 8px rgba(55, 40, 28, 0.05), 0 12px 28px rgba(55, 40, 28, 0.08)',
-        panel: '0 24px 60px rgba(63, 44, 28, 0.13)',
-        premium: '0 30px 84px rgba(63, 44, 28, 0.17)'
+        soft: '0 2px 8px rgba(15, 15, 31, 0.05), 0 12px 28px rgba(75, 22, 182, 0.08)',
+        panel: '0 24px 60px rgba(75, 22, 182, 0.14)',
+        premium: '0 30px 84px rgba(75, 22, 182, 0.17)'
       },
       fontFamily: {
         sans: ['Inter', '"Avenir Next"', '"Helvetica Neue"', '"Segoe UI"', 'Tahoma', 'Geneva', 'Verdana', 'sans-serif']

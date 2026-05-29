@@ -4,22 +4,17 @@
 
 :root {
   color-scheme: light;
-  --app-bg-top: #efebe6;
-  --app-bg-mid: #e8e3dd;
-  --app-bg-bottom: #ebe6e0;
-  --app-spot-a: rgba(239, 111, 67, 0.07);
-  --app-spot-b: rgba(95, 75, 59, 0.05);
-  --app-text: #2f2f33;
+  --app-bg-top: #fbf9ff;
+  --app-bg-mid: #f3edff;
+  --app-bg-bottom: #ede4ff;
+  --app-text: #0f0f1f;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   font-family: Inter, 'Avenir Next', 'Helvetica Neue', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background:
-    radial-gradient(circle at top right, var(--app-spot-a) 0%, transparent 28%),
-    radial-gradient(circle at left 18%, var(--app-spot-b) 0%, transparent 32%),
-    linear-gradient(180deg, var(--app-bg-top) 0%, var(--app-bg-mid) 48%, var(--app-bg-bottom) 100%);
+  background: linear-gradient(180deg, var(--app-bg-top) 0%, var(--app-bg-mid) 48%, var(--app-bg-bottom) 100%);
   color: var(--app-text);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;

@@ -104,13 +104,13 @@ export const ValidatePage = () => {
       <div className="overflow-hidden rounded-[2rem] border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(255,255,255,0.97))] shadow-premium">
         <form onSubmit={handleSubmit} className="px-7 py-8 md:px-9">
           <SectionTitle
-            eyebrow="DANAConnect Demo"
+            eyebrow="Example Company"
             title="Extracción de comprobante"
             description="Carga un comprobante y deja que el motor de extracción complete los datos detectados y el JSON estructurado."
           />
 
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
-            <section className="space-y-4 rounded-[1.5rem] border border-[#d8ccc1] bg-white p-4 shadow-soft">
+            <section className="space-y-4 rounded-[1.5rem] border border-border bg-white p-4 shadow-soft">
               {!uploadedFile ? <UploadDropzone onFileSelected={setFile} error={error} /> : null}
 
               {uploadedFile ? <FilePreviewCard uploadedFile={uploadedFile} isImage={isImage} onRemove={handleClearAll} /> : null}
@@ -118,7 +118,7 @@ export const ValidatePage = () => {
               {!isAutoExtracting && result ? <ExtractionDataCards result={result} /> : null}
             </section>
 
-            <section className="flex min-h-full flex-col rounded-[1.5rem] border border-[#d8ccc1] bg-white p-4 shadow-soft">
+            <section className="flex min-h-full flex-col rounded-[1.5rem] border border-border bg-white p-4 shadow-soft">
               <p className="text-sm font-semibold text-brand-800">Resultado de extracción</p>
 
               {formError ? <p className="mt-4 text-sm font-medium text-danger">{formError}</p> : null}

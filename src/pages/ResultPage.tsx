@@ -15,11 +15,11 @@ export const ResultPage = () => {
       <div className="overflow-hidden rounded-[2rem] border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(255,255,255,0.97))] shadow-premium">
         <div className="px-7 py-10 md:px-9">
           <SectionTitle
-            eyebrow="DANAConnect Demo"
+            eyebrow="Example Company"
             title={state.title}
           />
 
-          <div className="mt-8 rounded-[1.5rem] border border-[#d8ccc1] bg-white p-6 shadow-soft">
+          <div className="mt-8 rounded-[1.5rem] border border-border bg-white p-6 shadow-soft">
             <p className="text-lg font-semibold text-text">{state.title}</p>
 
             <div className="mt-6">
