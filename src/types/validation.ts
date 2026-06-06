@@ -1,5 +1,6 @@
 export type ValidationStatus = 'APPROVED' | 'OBSERVED' | 'REJECTED';
 export type DocumentCategory = 'BANK_TRANSFER' | 'DIGITAL_WALLET';
+export type PaymentStatus = 'COMPLETED' | 'PENDING' | 'FAILED' | 'UNKNOWN';
 
 export interface UploadedFile {
   file: File;
@@ -37,6 +38,8 @@ export interface ValidationFields {
   senderName?: string | null;
   senderAccount?: string | null;
   paymentMethod?: string | null;
+  paymentStatus?: PaymentStatus | null;
+  concept?: string | null;
   channel?: string | null;
   countryCode?: string | null;
 }
@@ -69,6 +72,8 @@ export interface ExtractedDocument {
   reference?: string | null;
   operationNumber?: string | null;
   paymentMethod?: string | null;
+  paymentStatus?: PaymentStatus | null;
+  concept?: string | null;
   channel?: string | null;
   countryCode?: string | null;
   language?: string | null;

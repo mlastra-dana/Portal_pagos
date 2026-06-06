@@ -1,0 +1,40 @@
+import type { PendingInvoice } from '../types/invoice';
+
+export const pendingInvoices: PendingInvoice[] = [
+  {
+    id: 'TEL-2026-001',
+    industry: 'TELCO',
+    provider: 'Example Telco',
+    title: 'Mensualidad líneas postpago corporativas',
+    description: 'Servicio mensual de telefonía y datos para líneas corporativas.',
+    invoiceNumber: 'FAC-TEL-908172',
+    dueDate: '2026-06-18',
+    amount: 64024,
+    currency: 'VES',
+    accountReference: 'TEL-908172',
+  },
+  {
+    id: 'SEG-2026-014',
+    industry: 'INSURANCE',
+    provider: 'Example Seguros',
+    title: 'Póliza salud integral',
+    description: 'Prima trimestral de póliza de salud.',
+    invoiceNumber: 'POL-448291',
+    dueDate: '2026-06-22',
+    amount: 86318.56,
+    currency: 'VES',
+    accountReference: 'SEG-448291',
+  },
+  {
+    id: 'BAN-2026-007',
+    industry: 'BANKING',
+    provider: 'Example Bank',
+    title: 'Cuota de financiamiento',
+    description: 'Pago pendiente de crédito comercial.',
+    invoiceNumber: 'CRE-774039',
+    dueDate: '2026-06-25',
+    amount: 332909.75,
+    currency: 'VES',
+    accountReference: 'BAN-774039',
+  },
+];

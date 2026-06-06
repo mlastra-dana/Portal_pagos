@@ -5,6 +5,7 @@ import { StatusBadge } from '../ui/StatusBadge';
 interface ValidationResultViewProps {
   result: ValidationResult;
   showDataSection?: boolean;
+  showStatusSection?: boolean;
 }
 
 const formatDate = (value: string): string =>
@@ -25,12 +26,22 @@ const issueStyle = (status: ValidationResult['status']): string => {
   return 'border-border bg-bg';
 };
 
-export const ValidationResultView = ({ result, showDataSection = true }: ValidationResultViewProps) => {
+export const ValidationResultView = ({
+  result,
+  showDataSection = true,
+  showStatusSection = true,
+}: ValidationResultViewProps) => {
   const [copied, setCopied] = useState(false);
   const statusDescription: Record<ValidationResult['status'], string> = {
     APPROVED: 'Comprobante procesado.',
     OBSERVED: 'Comprobante procesado con observaciones.',
     REJECTED: 'Comprobante rechazado.',
+  };
+  const paymentStatusLabel: Record<string, string> = {
+    COMPLETED: 'Pago completado',
+    PENDING: 'Pago en proceso',
+    FAILED: 'Pago fallido',
+    UNKNOWN: 'Estado no determinado',
   };
 
   const extractionJson = JSON.stringify(result.extractedDocument ?? result.rawExtraction?.document ?? {}, null, 2);
@@ -46,27 +57,34 @@ export const ValidationResultView = ({ result, showDataSection = true }: Validat
   };
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-lg border border-border bg-white p-6 shadow-soft">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="space-y-2">
-            <StatusBadge status={result.status} />
-            <p className="text-lg font-semibold text-text">{statusDescription[result.status]}</p>
+    <div className="space-y-4">
+      {showStatusSection ? (
+        <section className="rounded-lg border border-border bg-white p-4 shadow-soft">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1.5">
+              <StatusBadge status={result.status} />
+              <p className="text-base font-semibold text-text">{statusDescription[result.status]}</p>
+              {result.fields.paymentStatus ? (
+                <p className="text-xs font-semibold text-muted">
+                  {paymentStatusLabel[result.fields.paymentStatus] ?? result.fields.paymentStatus}
+                </p>
+              ) : null}
+            </div>
+            <div className="text-xs text-muted">
+              <p>Procesado: {formatDate(result.processedAt)}</p>
+            </div>
           </div>
-          <div className="text-sm text-muted">
-            <p>Procesado: {formatDate(result.processedAt)}</p>
-          </div>
-        </div>
-      </section>
+        </section>
+      ) : null}
 
       {showDataSection ? <ExtractionDataCards result={result} /> : null}
 
       {result.issues.length > 0 ? (
-        <section className={`rounded-lg border p-6 shadow-soft ${issueStyle(result.status)}`}>
-          <h4 className="text-base font-semibold text-text">Observaciones</h4>
+        <section className={`rounded-lg border p-4 shadow-soft ${issueStyle(result.status)}`}>
+          <h4 className="text-sm font-semibold text-text">Observaciones</h4>
           <ul className="mt-3 space-y-2">
             {result.issues.map((issue) => (
-              <li key={issue} className="rounded-md border border-border bg-white px-4 py-3 text-sm text-muted">
+              <li key={issue} className="rounded-md border border-border bg-white px-3 py-2 text-sm text-muted">
                 {issue}
               </li>
             ))}
@@ -75,11 +93,11 @@ export const ValidationResultView = ({ result, showDataSection = true }: Validat
       ) : null}
 
       {result.processingErrors && result.processingErrors.length > 0 ? (
-        <section className="rounded-lg border border-warning/30 bg-warning/5 p-6 shadow-soft">
-          <h4 className="text-base font-semibold text-text">Detalles técnicos</h4>
+        <section className="rounded-lg border border-warning/30 bg-warning/5 p-4 shadow-soft">
+          <h4 className="text-sm font-semibold text-text">Detalles técnicos</h4>
           <ul className="mt-3 space-y-2">
             {result.processingErrors.map((issue) => (
-              <li key={issue} className="rounded-md border border-border bg-white px-4 py-3 text-sm text-muted">
+              <li key={issue} className="rounded-md border border-border bg-white px-3 py-2 text-sm text-muted">
                 {issue}
               </li>
             ))}
@@ -87,9 +105,9 @@ export const ValidationResultView = ({ result, showDataSection = true }: Validat
         </section>
       ) : null}
 
-      <section className="rounded-lg border border-border bg-white p-6 shadow-soft">
+      <section className="rounded-lg border border-border bg-white p-4 shadow-soft">
         <details className="group">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-semibold text-text">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-text">
             JSON de extracción
             <span className="text-xs text-muted transition group-open:rotate-180">▼</span>
           </summary>
@@ -101,7 +119,7 @@ export const ValidationResultView = ({ result, showDataSection = true }: Validat
             >
               {copied ? 'JSON copiado' : 'Copiar JSON'}
             </button>
-            <pre className="max-h-96 overflow-auto rounded-md border border-border bg-white p-4 text-xs text-text">{extractionJson}</pre>
+            <pre className="max-h-72 overflow-auto rounded-md border border-border bg-white p-3 text-xs text-text">{extractionJson}</pre>
           </div>
         </details>
       </section>
@@ -113,9 +131,9 @@ export const ExtractionDataCards = ({ result }: { result: ValidationResult }) =>
   const cards = getFieldCards(result);
 
   return (
-    <section className="rounded-lg border border-border bg-white p-6 shadow-soft">
-      <h4 className="text-base font-semibold text-text">Datos extraídos</h4>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <section className="rounded-lg border border-border bg-white p-4 shadow-soft">
+      <h4 className="text-sm font-semibold text-text">Datos extraídos</h4>
+      <div className="mt-3 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
         {cards.map((card) => (
           <FieldCard key={card.label} label={card.label} value={card.value} />
         ))}
@@ -172,8 +190,8 @@ const displayCurrency = (value: string | null | undefined): string => {
 
 const FieldCard = ({ label, value }: { label: string; value: string }) => {
   return (
-    <div className="rounded-md border border-border bg-white px-4 py-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
+    <div className="rounded-md border border-border bg-white px-3 py-2">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</p>
       <p className="mt-1 break-all text-sm font-medium text-text">{value}</p>
     </div>
   );

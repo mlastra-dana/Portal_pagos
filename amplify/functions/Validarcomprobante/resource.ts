@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const functionDir = dirname(fileURLToPath(import.meta.url));
 
 const BEDROCK_REGION = process.env.AMPLIFY_BEDROCK_REGION ?? 'us-east-1';
-const BEDROCK_MODEL_ID = process.env.AMPLIFY_BEDROCK_MODEL_ID ?? 'us.anthropic.claude-3-7-sonnet-20250219-v1:0';
+const BEDROCK_MODEL_ID = process.env.AMPLIFY_BEDROCK_MODEL_ID ?? 'us.anthropic.claude-sonnet-4-5-20250929-v1:0';
 const RESULT_BUCKET = process.env.AMPLIFY_RESULT_BUCKET ?? '';
 const RESULT_PREFIX = process.env.AMPLIFY_RESULT_PREFIX ?? 'receipt-validations';
 

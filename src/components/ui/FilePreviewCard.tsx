@@ -12,7 +12,7 @@ export const FilePreviewCard = ({ uploadedFile, isImage, onRemove }: FilePreview
   const isPdf = uploadedFile.type === 'application/pdf' || uploadedFile.type === 'application/x-pdf';
 
   return (
-    <div className="rounded-xl border border-border bg-white p-4 shadow-soft">
+    <div className="rounded-lg border border-border bg-white p-3 shadow-soft">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-brand-900">{uploadedFile.name}</p>
@@ -27,7 +27,7 @@ export const FilePreviewCard = ({ uploadedFile, isImage, onRemove }: FilePreview
           type="button"
           onClick={onRemove}
           aria-label="Quitar archivo"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white text-xl font-semibold leading-none text-brand-700 transition hover:border-brand-300 hover:bg-brand-50"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-white text-lg font-semibold leading-none text-brand-700 transition hover:border-brand-300 hover:bg-brand-50"
         >
           ×
         </button>
@@ -38,13 +38,13 @@ export const FilePreviewCard = ({ uploadedFile, isImage, onRemove }: FilePreview
           <img
             src={uploadedFile.previewUrl}
             alt={`Vista previa de ${uploadedFile.name}`}
-            className="max-h-44 w-auto rounded-md object-contain"
+            className="max-h-36 w-auto rounded-md object-contain"
           />
         ) : isPdf && uploadedFile.previewUrl ? (
           <object
             data={uploadedFile.previewUrl}
             type="application/pdf"
-            className="h-[420px] w-full rounded-md"
+            className="h-[320px] w-full rounded-md"
           >
             <div className="flex items-center gap-3 text-sm text-brand-800">
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-brand-100">PDF</span>

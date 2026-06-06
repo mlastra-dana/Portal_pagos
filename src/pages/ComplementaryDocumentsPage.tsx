@@ -2,7 +2,9 @@ import { useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { PrimaryButton } from '../components/ui/PrimaryButton';
 import { SectionTitle } from '../components/ui/SectionTitle';
+import { formatMoney } from '../lib/invoiceValidation';
 import { formatFileSize } from '../lib/utils';
+import type { DemoCustomer, PendingInvoice } from '../types/invoice';
 import type { ValidationResult } from '../types/validation';
 
 interface ComplementaryDoc {
@@ -12,6 +14,8 @@ interface ComplementaryDoc {
 
 interface LocationState {
   extraction?: ValidationResult;
+  customer?: DemoCustomer;
+  invoice?: PendingInvoice;
   comprobante?: {
     name: string;
     size: number;
@@ -31,14 +35,16 @@ export const ComplementaryDocumentsPage = () => {
   const state = (location.state ?? {}) as LocationState;
   const extraction = state.extraction;
   const comprobante = state.comprobante;
+  const customer = state.customer;
+  const invoice = state.invoice;
 
   const docsTotalSize = useMemo(
     () => docs.reduce((acc, item) => acc + item.file.size, 0),
     [docs],
   );
 
-  if (!extraction || !comprobante) {
-    return <Navigate to="/validar" replace />;
+  if (!extraction || !comprobante || !customer || !invoice) {
+    return <Navigate to="/" replace />;
   }
 
   const onSelectFiles = (fileList: FileList | null) => {
@@ -69,15 +75,17 @@ export const ComplementaryDocumentsPage = () => {
     setError('');
     navigate('/resultado', {
       state: {
-        title: 'Comprobante enviado',
+        title: 'Pago validado',
+        customer,
+        invoice,
       },
     });
   };
 
   return (
-    <div className="w-full space-y-8">
-      <div className="overflow-hidden rounded-[2rem] border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(255,255,255,0.97))] shadow-premium">
-        <div className="px-7 py-8 md:px-9">
+    <div className="w-full space-y-5">
+      <div className="overflow-hidden rounded-xl border border-border bg-white shadow-panel">
+        <div className="px-5 py-6 md:px-7">
           <SectionTitle
             eyebrow="Example Company"
             title="Documentos adjuntos"
@@ -85,7 +93,7 @@ export const ComplementaryDocumentsPage = () => {
           />
 
           <div className="mt-4">
-            <Link to="/validar" className="inline-flex">
+            <Link to="/validar" state={{ customer, invoice }} className="inline-flex">
               <button
                 type="button"
                 className="inline-flex items-center justify-center rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold text-brand-500 transition hover:bg-brand-50"
@@ -96,7 +104,15 @@ export const ComplementaryDocumentsPage = () => {
           </div>
 
           <div className="mt-5">
-            <section className="space-y-4 rounded-[1.5rem] border border-border bg-white p-4 shadow-soft">
+            <section className="space-y-3 rounded-lg border border-border bg-white p-3 shadow-soft">
+              <div className="rounded-lg border border-brand-100 bg-brand-50 p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-brand-700">Pago asociado</p>
+                <p className="mt-2 text-base font-bold text-text">{invoice.title}</p>
+                <p className="mt-1 text-sm text-muted">
+                  {invoice.invoiceNumber} · Cliente {customer.cedula} · {formatMoney(invoice.amount, invoice.currency)}
+                </p>
+              </div>
+
               <p className="text-sm font-semibold text-brand-800">Comprobante principal</p>
               <div className="rounded-md border border-border bg-white px-4 py-3 text-sm text-text">
                 <p className="font-semibold">{comprobante.name}</p>
@@ -104,7 +120,7 @@ export const ComplementaryDocumentsPage = () => {
               </div>
 
               <p className="text-sm font-semibold text-brand-800">Adjuntar soporte adicional</p>
-              <div className="rounded-[1.25rem] border border-dashed border-brand-200 bg-white px-4 py-5">
+              <div className="rounded-lg border border-dashed border-brand-200 bg-white px-4 py-4">
                 <div>
                   <PrimaryButton type="button" onClick={() => fileInputRef.current?.click()}>
                     Agregar documentos
@@ -148,7 +164,7 @@ export const ComplementaryDocumentsPage = () => {
               <div className="flex justify-end pt-3">
                 <PrimaryButton
                   type="button"
-                  className="min-w-[180px] px-6 py-2 text-sm"
+                  className="min-w-[160px] px-5 py-2 text-sm"
                   onClick={finalize}
                 >
                   Enviar

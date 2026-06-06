@@ -1,9 +1,72 @@
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { fileToBase64 } from './fileToBase64';
-import type { DocumentCategory, ExpectedData, ExtractedDocument, ValidationResult, ValidationStatus } from '../types/validation';
+import type { DocumentCategory, ExpectedData, ExtractedDocument, PaymentStatus, ValidationResult, ValidationStatus } from '../types/validation';
+
+GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 const LAMBDA_FUNCTION_URL =
   (import.meta.env.VITE_LAMBDA_FUNCTION_URL as string | undefined)
   ?? (import.meta.env.VITE_VALIDATE_API_URL as string | undefined);
+
+interface PreparedReceiptFile {
+  fileName: string;
+  mimeType: string;
+  fileBase64: string;
+}
+
+const dataUrlToBase64 = (dataUrl: string): string => {
+  const [, base64] = dataUrl.split(',');
+  if (!base64) {
+    throw new Error('No fue posible renderizar el PDF como imagen.');
+  }
+  return base64;
+};
+
+const renderPdfFirstPageToPng = async (file: File): Promise<PreparedReceiptFile> => {
+  const source = await file.arrayBuffer();
+  const pdf = await getDocument({ data: source }).promise;
+  const page = await pdf.getPage(1);
+  const baseViewport = page.getViewport({ scale: 1 });
+  const scale = Math.min(3.5, Math.max(2.5, 1800 / baseViewport.width));
+  const viewport = page.getViewport({ scale });
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+
+  if (!context) {
+    throw new Error('No fue posible preparar la vista del PDF.');
+  }
+
+  canvas.width = Math.ceil(viewport.width);
+  canvas.height = Math.ceil(viewport.height);
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  await page.render({
+    canvasContext: context,
+    viewport,
+  }).promise;
+
+  pdf.destroy();
+
+  return {
+    fileName: `${file.name.replace(/\.pdf$/i, '')}-pagina-1.png`,
+    mimeType: 'image/png',
+    fileBase64: dataUrlToBase64(canvas.toDataURL('image/png')),
+  };
+};
+
+const prepareReceiptFile = async (file: File): Promise<PreparedReceiptFile> => {
+  if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+    return renderPdfFirstPageToPng(file);
+  }
+
+  return {
+    fileName: file.name,
+    mimeType: file.type,
+    fileBase64: await fileToBase64(file),
+  };
+};
 
 const normalizeStatus = (value: unknown): ValidationStatus => {
   const raw = String(value ?? '').trim().toUpperCase();
@@ -11,6 +74,15 @@ const normalizeStatus = (value: unknown): ValidationStatus => {
   if (raw === 'OBSERVED' || raw === 'OBSERVADO') return 'OBSERVED';
   if (raw === 'REJECTED' || raw === 'RECHAZADO') return 'REJECTED';
   return 'OBSERVED';
+};
+
+const normalizePaymentStatus = (value: unknown): PaymentStatus | null => {
+  const raw = String(value ?? '').trim().toUpperCase();
+  if (raw === 'COMPLETED' || raw === 'PAGADO' || raw === 'REALIZADO' || raw === 'APROBADO') return 'COMPLETED';
+  if (raw === 'PENDING' || raw === 'PENDIENTE' || raw === 'EN PROCESO') return 'PENDING';
+  if (raw === 'FAILED' || raw === 'FALLIDO' || raw === 'RECHAZADO' || raw === 'ANULADO') return 'FAILED';
+  if (raw === 'UNKNOWN') return 'UNKNOWN';
+  return null;
 };
 
 const asArrayOfStrings = (value: unknown): string[] => {
@@ -233,6 +305,8 @@ const normalizeResult = (raw: unknown): ValidationResult => {
     reference: (extractedDocument.reference as string | null | undefined) ?? null,
     operationNumber: (extractedDocument.operationNumber as string | null | undefined) ?? null,
     paymentMethod: (extractedDocument.paymentMethod as string | null | undefined) ?? null,
+    paymentStatus: normalizePaymentStatus(extractedDocument.paymentStatus),
+    concept: (extractedDocument.concept as string | null | undefined) ?? null,
     channel: (extractedDocument.channel as string | null | undefined) ?? null,
     countryCode: (extractedDocument.countryCode as string | null | undefined) ?? null,
     language: (extractedDocument.language as string | null | undefined) ?? null,
@@ -335,6 +409,8 @@ const normalizeResult = (raw: unknown): ValidationResult => {
     senderName: (fields.senderName as string | null | undefined) ?? normalizedDocument.senderName ?? null,
     senderAccount: (fields.senderAccount as string | null | undefined) ?? normalizedDocument.senderAccount ?? null,
     paymentMethod: (fields.paymentMethod as string | null | undefined) ?? normalizedDocument.paymentMethod ?? null,
+    paymentStatus: normalizePaymentStatus(fields.paymentStatus) ?? normalizedDocument.paymentStatus ?? null,
+    concept: (fields.concept as string | null | undefined) ?? normalizedDocument.concept ?? null,
     channel: (fields.channel as string | null | undefined) ?? normalizedDocument.channel ?? null,
     countryCode: (fields.countryCode as string | null | undefined) ?? normalizedDocument.countryCode ?? null,
   };
@@ -422,11 +498,11 @@ export const validateReceipt = async (file: File, expectedData?: ExpectedData): 
     throw new Error('No se configuró VITE_LAMBDA_FUNCTION_URL en el entorno.');
   }
 
-  const fileBase64 = await fileToBase64(file);
+  const preparedFile = await prepareReceiptFile(file);
   const payload = {
-    fileName: file.name,
-    mimeType: file.type,
-    fileBase64,
+    fileName: preparedFile.fileName,
+    mimeType: preparedFile.mimeType,
+    fileBase64: preparedFile.fileBase64,
     expectedData: {
       nombreDepositante: expectedData?.nombreDepositante || undefined,
       cedulaDepositante: expectedData?.cedulaDepositante || undefined,

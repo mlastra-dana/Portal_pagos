@@ -13,9 +13,11 @@ from typing import Any, Dict, Optional
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
+from extraction_prompt import GENERIC_EXTRACTION_PROMPT
+
 
 BEDROCK_REGION = os.getenv("BEDROCK_REGION", os.getenv("AWS_REGION", "us-east-1"))
-BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-3-7-sonnet-20250219-v1:0")
+BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
 RESULT_BUCKET = os.getenv("RESULT_BUCKET", "")
 RESULT_PREFIX = os.getenv("RESULT_PREFIX", "receipt-validations")
 
@@ -29,65 +31,6 @@ bedrock = boto3.client(
     ),
 )
 s3 = boto3.client("s3")
-
-
-GENERIC_EXTRACTION_PROMPT = """
-Actua como un sistema universal de extraccion de comprobantes de pago.
-Debes analizar cualquier comprobante, recibo o confirmacion de pago y responder SOLO JSON valido.
-No agregues explicaciones, markdown ni texto adicional.
-
-TIPOS DE DOCUMENTO POSIBLES:
-- transferencia bancaria
-- deposito bancario
-- pago movil
-- zelle
-- recibo POS
-- comprobante de billetera digital
-- transferencia internacional
-- comprobante de cajero
-- confirmacion de pago web o app bancaria
-
-DEVUELVE EXACTAMENTE ESTE JSON:
-{
-  "documentType": null,
-  "issuerName": null,
-  "issuerBankName": null,
-  "issuerBankCode": null,
-  "senderName": null,
-  "senderAccount": null,
-  "recipientName": null,
-  "recipientAccount": null,
-  "destinationBankName": null,
-  "destinationBankCode": null,
-  "transactionDate": null,
-  "transactionTime": null,
-  "amount": null,
-  "currency": null,
-  "reference": null,
-  "operationNumber": null,
-  "paymentMethod": null,
-  "channel": null,
-  "countryCode": null,
-  "language": null,
-  "summary": null,
-  "notes": []
-}
-
-REGLAS:
-1) Extrae datos de cualquier comprobante de pago, sin asumir pais especifico.
-2) Si un campo no aparece de forma razonablemente clara, devuelve null.
-3) amount debe ser numero, no string.
-4) transactionDate debe venir en formato YYYY-MM-DD cuando sea posible normalizarla.
-5) transactionTime debe venir en HH:MM o HH:MM:SS si aparece.
-6) currency debe venir normalizada si es evidente:
-   VES, USD, EUR, PEN, COP, CLP, MXN, ARS, BRL.
-   Si solo existe simbolo y es claro, normalizalo. Si no, null.
-7) reference y operationNumber no son obligatoriamente iguales.
-8) senderAccount y recipientAccount pueden venir enmascaradas si asi aparecen.
-9) notes debe ser un arreglo corto de hallazgos relevantes o ambiguedades.
-10) No inventes bancos, cuentas, montos, referencias ni fechas.
-""".strip()
-
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     try:
@@ -255,7 +198,6 @@ def extract_document(content_block: Dict[str, Any]) -> Dict[str, Any]:
         inferenceConfig={
             "maxTokens": 1800,
             "temperature": 0,
-            "topP": 0.9,
         },
         additionalModelRequestFields={
             "top_k": 50,
@@ -329,6 +271,8 @@ def build_empty_document() -> Dict[str, Any]:
         "reference": None,
         "operationNumber": None,
         "paymentMethod": None,
+        "paymentStatus": None,
+        "concept": None,
         "channel": None,
         "countryCode": None,
         "language": None,
@@ -346,9 +290,9 @@ def normalize_document(raw: Dict[str, Any]) -> Dict[str, Any]:
         "issuerName": normalize_text(document.get("issuerName")),
         "issuerBankName": normalize_text(document.get("issuerBankName")),
         "issuerBankCode": normalize_text(document.get("issuerBankCode")),
-        "senderName": normalize_text(document.get("senderName")),
+        "senderName": normalize_party_name(document.get("senderName")),
         "senderAccount": normalize_text(document.get("senderAccount")),
-        "recipientName": normalize_text(document.get("recipientName")),
+        "recipientName": normalize_party_name(document.get("recipientName")),
         "recipientAccount": normalize_text(document.get("recipientAccount")),
         "destinationBankName": normalize_text(document.get("destinationBankName")),
         "destinationBankCode": normalize_text(document.get("destinationBankCode")),
@@ -359,6 +303,8 @@ def normalize_document(raw: Dict[str, Any]) -> Dict[str, Any]:
         "reference": normalize_reference(document.get("reference")),
         "operationNumber": normalize_text(document.get("operationNumber")),
         "paymentMethod": normalize_text(document.get("paymentMethod")),
+        "paymentStatus": normalize_payment_status(document.get("paymentStatus")),
+        "concept": normalize_text(document.get("concept")),
         "channel": normalize_text(document.get("channel")),
         "countryCode": normalize_country_code(document.get("countryCode")),
         "language": normalize_text(document.get("language")),
@@ -368,6 +314,7 @@ def normalize_document(raw: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def build_result(document: Dict[str, Any], expected: Dict[str, Any], extraction_error: Optional[str]) -> Dict[str, Any]:
+    payment_status = document.get("paymentStatus")
     extracted_core_count = sum(
         1 for value in [
             document.get("amount"),
@@ -396,8 +343,15 @@ def build_result(document: Dict[str, Any], expected: Dict[str, Any], extraction_
         issues.append("No se detectaron bancos de origen o destino.")
     if not document.get("senderName") and not document.get("recipientName") and not document.get("issuerName"):
         issues.append("No se detectaron participantes claros del pago.")
+    if payment_status == "PENDING":
+        issues.append("El comprobante indica que el pago esta en proceso o pendiente.")
+    if payment_status == "FAILED":
+        issues.append("El comprobante indica que el pago fue rechazado, fallido, anulado o reversado.")
 
-    if extracted_core_count >= 6 and not extraction_error:
+    if payment_status in {"PENDING", "FAILED"}:
+        status = "REJECTED"
+        summary = "El comprobante no confirma un pago completado."
+    elif extracted_core_count >= 6 and not extraction_error:
         status = "APPROVED"
         summary = document.get("summary") or "Comprobante extraido correctamente."
     elif extracted_core_count >= 3:
@@ -427,6 +381,8 @@ def build_result(document: Dict[str, Any], expected: Dict[str, Any], extraction_
         "currency": document.get("currency"),
         "operationNumber": document.get("operationNumber"),
         "paymentMethod": document.get("paymentMethod"),
+        "paymentStatus": payment_status,
+        "concept": document.get("concept"),
         "channel": document.get("channel"),
         "countryCode": document.get("countryCode"),
     }
@@ -457,6 +413,36 @@ def normalize_text(value: Any, fallback: Optional[str] = None) -> Optional[str]:
     return text
 
 
+def normalize_party_name(value: Any) -> Optional[str]:
+    text = normalize_text(value)
+    if text is None:
+        return None
+
+    cleaned = re.sub(r"[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 ]+", " ", text)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
+    generic_values = {
+        "poliza",
+        "póliza",
+        "servicio",
+        "pago",
+        "factura",
+        "credito",
+        "crédito",
+        "prestamo",
+        "préstamo",
+        "concepto",
+        "transferencia",
+        "cuenta",
+        "destino",
+        "origen",
+    }
+
+    if cleaned in generic_values:
+        return None
+
+    return text
+
+
 def normalize_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -468,6 +454,25 @@ def normalize_reference(value: Any) -> Optional[str]:
     if text is None:
         return None
     return text
+
+
+def normalize_payment_status(value: Any) -> Optional[str]:
+    text = normalize_text(value)
+    if text is None:
+        return None
+
+    upper = text.upper().strip()
+    if upper in {"COMPLETED", "PENDING", "FAILED", "UNKNOWN"}:
+        return upper
+
+    if re.search(r"\b(EN PROCESO|PENDIENTE|PROCESANDO|POR CONFIRMAR|NO LIQUIDADO)\b", upper):
+        return "PENDING"
+    if re.search(r"\b(RECHAZADO|FALLIDO|ANULADO|CANCELADO|REVERSADO)\b", upper):
+        return "FAILED"
+    if re.search(r"\b(REALIZADA|APROBADO|APROBADA|COMPLETADO|COMPLETADA|EXITOSO|EXITOSA|CONFIRMADO|CONFIRMADA)\b", upper):
+        return "COMPLETED"
+
+    return "UNKNOWN"
 
 
 def normalize_country_code(value: Any) -> Optional[str]:
@@ -541,6 +546,11 @@ def normalize_currency(value: Any) -> Optional[str]:
     upper = text.upper()
     if upper in {"VES", "USD", "EUR", "PEN", "COP", "CLP", "MXN", "ARS", "BRL"}:
         return upper
+    cleaned = re.sub(r"[^A-Z]", "", upper)
+    if cleaned in {"BS", "BSS", "BOLIVARES", "BOLIVAR", "VEF"}:
+        return "VES"
+    if "BS." in upper or "BS " in upper or "BOLIVAR" in upper:
+        return "VES"
     if "S/" in text or "SOLES" in upper or "SOL" in upper:
         return "PEN"
     if "$" in text and "US" in upper:
@@ -560,8 +570,12 @@ def normalize_amount(value: Any) -> Optional[float]:
         return None
 
     text = (
-        text.replace("Bs.", "")
+        re.sub(r"\bBs\.?\s*S?\.?\b", "", text, flags=re.IGNORECASE)
+        .replace("Bs.", "")
         .replace("Bs", "")
+        .replace("BOLIVARES", "")
+        .replace("Bolivares", "")
+        .replace("bolivares", "")
         .replace("USD", "")
         .replace("VES", "")
         .replace("EUR", "")
