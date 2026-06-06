@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ExtractionDataCards, ValidationResultView } from '../components/result/ValidationResultView';
 import { FilePreviewCard } from '../components/ui/FilePreviewCard';
@@ -35,8 +35,10 @@ export const ValidatePage = () => {
   const [formError, setFormError] = useState('');
   const [technicalError, setTechnicalError] = useState('');
   const [result, setResult] = useState<ValidationResult | null>(null);
+  const extractionRunIdRef = useRef(0);
 
   const handleClearAll = () => {
+    extractionRunIdRef.current += 1;
     clearFile();
     setIsAutoExtracting(false);
     setResult(null);
@@ -54,6 +56,9 @@ export const ValidatePage = () => {
     }
 
     let isCancelled = false;
+    const runId = extractionRunIdRef.current + 1;
+    extractionRunIdRef.current = runId;
+    const isStaleRun = () => isCancelled || extractionRunIdRef.current !== runId;
 
     const runAutoExtraction = async () => {
       setResult(null);
@@ -62,16 +67,21 @@ export const ValidatePage = () => {
       setTechnicalError('');
 
       try {
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, 0);
+        });
+        if (isStaleRun()) return;
+
         const autoResult = await validateReceipt(uploadedFile.file);
-        if (isCancelled) return;
+        if (isStaleRun()) return;
 
         setResult(autoResult);
       } catch (autoError) {
-        if (isCancelled) return;
+        if (isStaleRun()) return;
         setFormError('No fue posible extraer datos al cargar el comprobante.');
         setTechnicalError(autoError instanceof Error ? autoError.message : 'Error inesperado en la extracción.');
       } finally {
-        if (!isCancelled) {
+        if (!isStaleRun()) {
           setIsAutoExtracting(false);
         }
       }
@@ -89,8 +99,9 @@ export const ValidatePage = () => {
   }
 
   const paymentMatch = validatePaymentAgainstInvoice(invoice, result);
+  const isInvalidPaymentDocument = result ? isInvalidPaymentDocumentResult(result) : false;
   const displayResult =
-    result && paymentMatch?.status === 'MISMATCH'
+    result && !isInvalidPaymentDocument && paymentMatch?.status === 'MISMATCH'
       ? buildInvoiceMismatchResult(result, paymentMatch)
       : result;
 
@@ -162,12 +173,12 @@ export const ValidatePage = () => {
 
               {uploadedFile ? <FilePreviewCard uploadedFile={uploadedFile} isImage={isImage} onRemove={handleClearAll} /> : null}
 
-              {!isAutoExtracting && result ? <ExtractionDataCards result={result} /> : null}
+              {!isAutoExtracting && result && !isInvalidPaymentDocument ? <ExtractionDataCards result={result} /> : null}
             </section>
 
             <section className="flex min-h-full flex-col rounded-lg border border-border bg-white p-3 shadow-soft">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-brand-800">Resultado de comparación</p>
+                <p className="text-sm font-semibold text-brand-800">Resultado</p>
                 {displayResult ? (
                   <p className="text-xs text-muted">Procesado: {formatProcessedAt(displayResult.processedAt)}</p>
                 ) : null}
@@ -186,16 +197,21 @@ export const ValidatePage = () => {
               {!isAutoExtracting && result ? (
                 <div className="mt-4">
                   {paymentMatch ? (
-                    <PaymentMatchPanel
-                      invoice={invoice}
-                      match={paymentMatch}
-                      status={(displayResult ?? result).status}
-                    />
+                    isInvalidPaymentDocument ? (
+                      <InvalidPaymentDocumentPanel status={(displayResult ?? result).status} />
+                    ) : (
+                      <PaymentMatchPanel
+                        invoice={invoice}
+                        match={paymentMatch}
+                        status={(displayResult ?? result).status}
+                      />
+                    )
                   ) : null}
                   <ValidationResultView
                     result={displayResult ?? result}
                     showDataSection={false}
                     showStatusSection={false}
+                    showDetailsSection={!isInvalidPaymentDocument}
                   />
                 </div>
               ) : null}
@@ -218,6 +234,28 @@ export const ValidatePage = () => {
 
     </div>
   );
+};
+
+const INVALID_PAYMENT_DOCUMENT_MESSAGE = 'Esto no parece un comprobante de pago. Adjunte un comprobante de pago válido.';
+
+const isInvalidPaymentDocumentResult = (result: ValidationResult): boolean => {
+  const detectedAmount = result.fields.amount ?? result.fields.montoIA ?? null;
+  const detectedCurrency = result.fields.currency ?? null;
+  const detectedDate = result.fields.transactionDate ?? result.fields.fechaIA ?? null;
+  const detectedReference =
+    result.fields.reference
+    ?? result.fields.CompletereferenciaIA
+    ?? result.fields.operationNumber
+    ?? result.fields.rawReferenceIA
+    ?? null;
+  const detectedRecipientAccount = result.fields.recipientAccount ?? result.fields.CuentaBancariaIA ?? null;
+
+  return result.status === 'REJECTED'
+    && detectedAmount === null
+    && !detectedCurrency
+    && !detectedDate
+    && !detectedReference
+    && !detectedRecipientAccount;
 };
 
 const InvoiceSummary = ({ invoice, customer }: { invoice: PendingInvoice; customer: DemoCustomer }) => (
@@ -303,6 +341,18 @@ const PaymentMatchPanel = ({
     </section>
   );
 };
+
+const InvalidPaymentDocumentPanel = ({ status }: { status: ValidationResult['status'] }) => (
+  <section className="mb-4 rounded-lg border border-danger/30 bg-danger/5 p-4 text-danger">
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <p className="text-sm font-bold">Documento no válido</p>
+        <p className="mt-2 text-sm font-medium">{INVALID_PAYMENT_DOCUMENT_MESSAGE}</p>
+      </div>
+      <StatusBadge status={status} />
+    </div>
+  </section>
+);
 
 const buildInvoiceMismatchResult = (
   result: ValidationResult,

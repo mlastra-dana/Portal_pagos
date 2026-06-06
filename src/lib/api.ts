@@ -15,20 +15,69 @@ interface PreparedReceiptFile {
   fileBase64: string;
 }
 
+const MAX_RENDERED_WIDTH = 1600;
+const MAX_RENDERED_HEIGHT = 2200;
+const JPEG_QUALITY = 0.82;
+
+const wait = (delayMs: number): Promise<void> =>
+  new Promise((resolve) => {
+    window.setTimeout(resolve, delayMs);
+  });
+
+const fetchWithNetworkRetry = async (
+  url: string,
+  options: RequestInit,
+  maxRetries = 1,
+): Promise<Response> => {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      return await fetch(url, options);
+    } catch (error) {
+      lastError = error;
+      if (attempt === maxRetries) break;
+      await wait(900 * (attempt + 1));
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('No fue posible conectar con el servicio de validación.');
+};
+
 const dataUrlToBase64 = (dataUrl: string): string => {
   const [, base64] = dataUrl.split(',');
   if (!base64) {
-    throw new Error('No fue posible renderizar el PDF como imagen.');
+    throw new Error('No fue posible preparar el archivo como imagen.');
   }
   return base64;
 };
 
-const renderPdfFirstPageToPng = async (file: File): Promise<PreparedReceiptFile> => {
+const canvasToJpegBase64 = async (canvas: HTMLCanvasElement): Promise<string> => {
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY);
+  });
+
+  if (!blob) {
+    return dataUrlToBase64(canvas.toDataURL('image/jpeg', JPEG_QUALITY));
+  }
+
+  return fileToBase64(new File([blob], 'prepared-receipt.jpg', { type: 'image/jpeg' }));
+};
+
+const getConstrainedScale = (width: number, height: number): number => {
+  const scaleByWidth = MAX_RENDERED_WIDTH / width;
+  const scaleByHeight = MAX_RENDERED_HEIGHT / height;
+  return Math.min(2.25, Math.max(1, Math.min(scaleByWidth, scaleByHeight)));
+};
+
+const renderPdfFirstPageToJpeg = async (file: File): Promise<PreparedReceiptFile> => {
   const source = await file.arrayBuffer();
   const pdf = await getDocument({ data: source }).promise;
   const page = await pdf.getPage(1);
   const baseViewport = page.getViewport({ scale: 1 });
-  const scale = Math.min(3.5, Math.max(2.5, 1800 / baseViewport.width));
+  const scale = getConstrainedScale(baseViewport.width, baseViewport.height);
   const viewport = page.getViewport({ scale });
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
@@ -50,22 +99,50 @@ const renderPdfFirstPageToPng = async (file: File): Promise<PreparedReceiptFile>
   pdf.destroy();
 
   return {
-    fileName: `${file.name.replace(/\.pdf$/i, '')}-pagina-1.png`,
-    mimeType: 'image/png',
-    fileBase64: dataUrlToBase64(canvas.toDataURL('image/png')),
+    fileName: `${file.name.replace(/\.pdf$/i, '')}-pagina-1.jpg`,
+    mimeType: 'image/jpeg',
+    fileBase64: await canvasToJpegBase64(canvas),
   };
+};
+
+const prepareImageFile = async (file: File): Promise<PreparedReceiptFile> => {
+  try {
+    const image = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_RENDERED_WIDTH / image.width, MAX_RENDERED_HEIGHT / image.height);
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      throw new Error('No fue posible preparar la imagen.');
+    }
+
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    image.close();
+
+    return {
+      fileName: `${file.name.replace(/\.[^.]+$/i, '')}.jpg`,
+      mimeType: 'image/jpeg',
+      fileBase64: await canvasToJpegBase64(canvas),
+    };
+  } catch {
+    return {
+      fileName: file.name,
+      mimeType: file.type,
+      fileBase64: await fileToBase64(file),
+    };
+  }
 };
 
 const prepareReceiptFile = async (file: File): Promise<PreparedReceiptFile> => {
   if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
-    return renderPdfFirstPageToPng(file);
+    return renderPdfFirstPageToJpeg(file);
   }
 
-  return {
-    fileName: file.name,
-    mimeType: file.type,
-    fileBase64: await fileToBase64(file),
-  };
+  return prepareImageFile(file);
 };
 
 const normalizeStatus = (value: unknown): ValidationStatus => {
@@ -278,6 +355,35 @@ const dedupeIssues = (issues: string[]): string[] => {
   return normalized;
 };
 
+const NON_PAYMENT_DOCUMENT_MESSAGE = 'Esto no parece un comprobante de pago. Adjunte un comprobante de pago válido.';
+
+const isLikelyNonPaymentDocument = (fields: {
+  amount?: number | null;
+  montoIA?: number | null;
+  currency?: string | null;
+  transactionDate?: string | null;
+  fechaIA?: string | null;
+  reference?: string | null;
+  CompletereferenciaIA?: string | null;
+  rawReferenceIA?: string | null;
+  operationNumber?: string | null;
+  recipientAccount?: string | null;
+  CuentaBancariaIA?: string | null;
+}): boolean => {
+  const hasAmount = (fields.amount ?? fields.montoIA) != null;
+  const hasCurrency = Boolean(fields.currency);
+  const hasDate = Boolean(fields.transactionDate ?? fields.fechaIA);
+  const hasReference = Boolean(
+    fields.reference
+    ?? fields.CompletereferenciaIA
+    ?? fields.rawReferenceIA
+    ?? fields.operationNumber,
+  );
+  const hasRecipientAccount = Boolean(fields.recipientAccount ?? fields.CuentaBancariaIA);
+
+  return !hasAmount && !hasCurrency && !hasDate && !hasReference && !hasRecipientAccount;
+};
+
 const normalizeResult = (raw: unknown): ValidationResult => {
   const data = safeRecord(raw);
   const fields = safeRecord(data.fields);
@@ -425,17 +531,20 @@ const normalizeResult = (raw: unknown): ValidationResult => {
   const missingRequiredFields = getMissingRequiredFields(categorizedFields);
   const missingComplementaryFields = getMissingComplementaryFields(categorizedFields);
   const isAlternativeRail = documentCategory === 'DIGITAL_WALLET';
+  const isNonPaymentDocument = isLikelyNonPaymentDocument(categorizedFields);
   const status: ValidationStatus =
-    missingRequiredFields.length > 0
+    isNonPaymentDocument
+      ? 'REJECTED'
+      : missingRequiredFields.length > 0
       ? 'REJECTED'
       : missingComplementaryFields.length > 0 || rawIssues.length > 0 || processingErrors.length > 0 || lambdaStatus === 'OBSERVED'
         ? 'OBSERVED'
         : 'APPROVED';
 
-  const issues = [...rawIssues];
-  if (missingRequiredFields.length > 0) {
+  const issues = isNonPaymentDocument ? [NON_PAYMENT_DOCUMENT_MESSAGE] : [...rawIssues];
+  if (!isNonPaymentDocument && missingRequiredFields.length > 0) {
     issues.unshift(`Faltan datos obligatorios para validar la transferencia: ${missingRequiredFields.join(', ')}.`);
-  } else if (missingComplementaryFields.length > 0) {
+  } else if (!isNonPaymentDocument && missingComplementaryFields.length > 0) {
     issues.unshift(`Faltan datos complementarios: ${missingComplementaryFields.join(', ')}.`);
   }
 
@@ -464,7 +573,9 @@ const normalizeResult = (raw: unknown): ValidationResult => {
   });
 
   const summary =
-    missingRequiredFields.length > 0
+    isNonPaymentDocument
+      ? NON_PAYMENT_DOCUMENT_MESSAGE
+      : missingRequiredFields.length > 0
       ? 'Faltan datos obligatorios del comprobante para continuar.'
       : missingComplementaryFields.length > 0
         ? 'Comprobante procesado con datos obligatorios completos y observaciones complementarias.'
@@ -509,7 +620,7 @@ export const validateReceipt = async (file: File, expectedData?: ExpectedData): 
     },
   };
 
-  const response = await fetch(LAMBDA_FUNCTION_URL, {
+  const response = await fetchWithNetworkRetry(LAMBDA_FUNCTION_URL, {
     method: 'POST',
     headers: {
       // Use a simple request content type to avoid a browser CORS preflight

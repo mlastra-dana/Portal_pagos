@@ -6,6 +6,7 @@ interface ValidationResultViewProps {
   result: ValidationResult;
   showDataSection?: boolean;
   showStatusSection?: boolean;
+  showDetailsSection?: boolean;
 }
 
 const formatDate = (value: string): string =>
@@ -30,6 +31,7 @@ export const ValidationResultView = ({
   result,
   showDataSection = true,
   showStatusSection = true,
+  showDetailsSection = true,
 }: ValidationResultViewProps) => {
   const [copied, setCopied] = useState(false);
   const statusDescription: Record<ValidationResult['status'], string> = {
@@ -79,7 +81,7 @@ export const ValidationResultView = ({
 
       {showDataSection ? <ExtractionDataCards result={result} /> : null}
 
-      {result.issues.length > 0 ? (
+      {showDetailsSection && result.issues.length > 0 ? (
         <section className={`rounded-lg border p-4 shadow-soft ${issueStyle(result.status)}`}>
           <h4 className="text-sm font-semibold text-text">Observaciones</h4>
           <ul className="mt-3 space-y-2">
@@ -92,7 +94,7 @@ export const ValidationResultView = ({
         </section>
       ) : null}
 
-      {result.processingErrors && result.processingErrors.length > 0 ? (
+      {showDetailsSection && result.processingErrors && result.processingErrors.length > 0 ? (
         <section className="rounded-lg border border-warning/30 bg-warning/5 p-4 shadow-soft">
           <h4 className="text-sm font-semibold text-text">Detalles técnicos</h4>
           <ul className="mt-3 space-y-2">
@@ -105,7 +107,8 @@ export const ValidationResultView = ({
         </section>
       ) : null}
 
-      <section className="rounded-lg border border-border bg-white p-4 shadow-soft">
+      {showDetailsSection ? (
+        <section className="rounded-lg border border-border bg-white p-4 shadow-soft">
         <details className="group">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-text">
             JSON de extracción
@@ -122,7 +125,8 @@ export const ValidationResultView = ({
             <pre className="max-h-72 overflow-auto rounded-md border border-border bg-white p-3 text-xs text-text">{extractionJson}</pre>
           </div>
         </details>
-      </section>
+        </section>
+      ) : null}
     </div>
   );
 };

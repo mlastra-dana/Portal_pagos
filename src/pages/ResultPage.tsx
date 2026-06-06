@@ -26,10 +26,9 @@ export const ResultPage = () => {
           />
 
           <div className="mt-5 rounded-lg border border-border bg-white p-4 shadow-soft">
-            <p className="text-base font-semibold text-text">{state.title}</p>
             {state.invoice && state.customer ? (
-              <div className="mt-5 rounded-lg border border-success/20 bg-success/5 p-4">
-                <p className="text-sm font-bold text-success">El pago quedó asociado a la factura seleccionada.</p>
+              <div className="rounded-lg border border-success/20 bg-success/5 p-4">
+                <p className="text-sm font-bold text-success">El pago fue asociado a la factura seleccionada.</p>
                 <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <div>
                     <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Cliente</dt>
@@ -54,9 +53,9 @@ export const ResultPage = () => {
             ) : null}
 
             <div className="mt-6">
-              <Link to="/" className="inline-flex">
+              <Link to="/facturas" state={{ customer: state.customer }} className="inline-flex">
                 <PrimaryButton className="px-6 py-2.5 text-sm">
-                  Nueva consulta
+                  Nuevo Pago
                 </PrimaryButton>
               </Link>
             </div>
