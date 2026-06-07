@@ -43,16 +43,16 @@ input:-webkit-autofill:focus {
 
 .login-id-input,
 .login-id-select {
-  color: #0f0f1f;
-  -webkit-text-fill-color: #0f0f1f;
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
 }
 
 .login-id-input:-webkit-autofill,
 .login-id-input:-webkit-autofill:hover,
 .login-id-input:-webkit-autofill:focus {
-  -webkit-text-fill-color: #0f0f1f;
-  box-shadow: 0 0 0 1000px #e8effa inset;
-  caret-color: #0f0f1f;
+  -webkit-text-fill-color: #ffffff;
+  box-shadow: 0 0 0 1000px rgba(255, 255, 255, 0.12) inset;
+  caret-color: #ffffff;
 }
 
 .login-password-input {
