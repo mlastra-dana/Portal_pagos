@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ExtractionDataCards, ValidationResultView } from '../components/result/ValidationResultView';
 import { FilePreviewCard } from '../components/ui/FilePreviewCard';
 import { PrimaryButton } from '../components/ui/PrimaryButton';
@@ -7,6 +7,7 @@ import { SectionTitle } from '../components/ui/SectionTitle';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { UploadDropzone } from '../components/ui/UploadDropzone';
 import { useFileUpload } from '../hooks/useFileUpload';
+import { clearActiveValidationSession, getActiveValidationSession, saveActiveValidationSession } from '../lib/activeValidationSession';
 import { validateReceipt } from '../lib/api';
 import { formatDueDate, formatMoney, validatePaymentAgainstInvoice } from '../lib/invoiceValidation';
 import type { DemoCustomer, PendingInvoice } from '../types/invoice';
@@ -23,22 +24,41 @@ const formatProcessedAt = (value: string): string =>
     timeStyle: 'short',
   });
 
+const getUploadedFileKey = (file: { name: string; size: number; type: string }) =>
+  `${file.name}-${file.size}-${file.type}`;
+
 export const ValidatePage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { uploadedFile, isImage, error, setFile, clearFile } = useFileUpload();
   const state = (location.state ?? {}) as LocationState;
-  const customer = state.customer;
-  const invoice = state.invoice;
+  const activeSession = getActiveValidationSession();
+  const customer = state.customer ?? activeSession?.customer;
+  const invoice = state.invoice ?? activeSession?.invoice;
+  const shouldRestoreSession =
+    Boolean(activeSession)
+    && activeSession?.customer.cedula === customer?.cedula
+    && activeSession?.invoice.id === invoice?.id;
+  const { uploadedFile, isImage, error, setFile, clearFile } = useFileUpload(
+    shouldRestoreSession ? activeSession?.uploadedFile ?? null : null,
+  );
 
   const [isAutoExtracting, setIsAutoExtracting] = useState(false);
   const [formError, setFormError] = useState('');
   const [technicalError, setTechnicalError] = useState('');
-  const [result, setResult] = useState<ValidationResult | null>(null);
+  const [result, setResult] = useState<ValidationResult | null>(
+    shouldRestoreSession ? activeSession?.result ?? null : null,
+  );
   const extractionRunIdRef = useRef(0);
+  const validatedFileKeyRef = useRef(
+    shouldRestoreSession && activeSession?.uploadedFile
+      ? getUploadedFileKey(activeSession.uploadedFile)
+      : '',
+  );
 
   const handleClearAll = () => {
     extractionRunIdRef.current += 1;
+    validatedFileKeyRef.current = '';
+    clearActiveValidationSession();
     clearFile();
     setIsAutoExtracting(false);
     setResult(null);
@@ -52,6 +72,11 @@ export const ValidatePage = () => {
       setFormError('');
       setTechnicalError('');
       setResult(null);
+      return;
+    }
+
+    const uploadedFileKey = getUploadedFileKey(uploadedFile);
+    if (result && validatedFileKeyRef.current === uploadedFileKey) {
       return;
     }
 
@@ -75,6 +100,7 @@ export const ValidatePage = () => {
         const autoResult = await validateReceipt(uploadedFile.file);
         if (isStaleRun()) return;
 
+        validatedFileKeyRef.current = uploadedFileKey;
         setResult(autoResult);
       } catch (autoError) {
         if (isStaleRun()) return;
@@ -93,6 +119,17 @@ export const ValidatePage = () => {
       isCancelled = true;
     };
   }, [uploadedFile]);
+
+  useEffect(() => {
+    if (!customer || !invoice || !uploadedFile || !result) return;
+
+    saveActiveValidationSession({
+      customer,
+      invoice,
+      uploadedFile,
+      result,
+    });
+  }, [customer, invoice, uploadedFile, result]);
 
   if (!customer || !invoice) {
     return <Navigate to="/" replace />;
@@ -153,17 +190,6 @@ export const ValidatePage = () => {
             title="Validar pago"
             description="Cargue el comprobante para validar el pago."
           />
-
-          <div className="mt-4">
-            <Link to="/facturas" state={{ customer }} className="inline-flex">
-              <button
-                type="button"
-                className="inline-flex items-center justify-center rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold text-brand-500 transition hover:bg-brand-50"
-              >
-                Volver a facturas
-              </button>
-            </Link>
-          </div>
 
           <InvoiceSummary invoice={invoice} customer={customer} />
 
@@ -358,9 +384,10 @@ const buildInvoiceMismatchResult = (
   result: ValidationResult,
   match: NonNullable<ReturnType<typeof validatePaymentAgainstInvoice>>,
 ): ValidationResult => {
-  const mismatchIssues = match.issues.length > 0
-    ? match.issues
-    : ['El comprobante no coincide con la factura seleccionada.'];
+  const missingFieldIssues = match.issues.filter((issue) => {
+    const normalized = issue.toLowerCase();
+    return normalized.includes('no se detectó') || normalized.includes('no se detecto');
+  });
 
   return {
     ...result,
@@ -368,7 +395,7 @@ const buildInvoiceMismatchResult = (
     summary: match.hasRequiredExtractionFields
       ? 'El comprobante no corresponde a la factura seleccionada.'
       : 'Faltan datos obligatorios para validar el pago.',
-    issues: [...mismatchIssues, ...result.issues],
+    issues: [...missingFieldIssues, ...result.issues],
   };
 };
 

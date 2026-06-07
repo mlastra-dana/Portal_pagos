@@ -3,8 +3,8 @@ import type { UploadedFile } from '../types/validation';
 
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'application/pdf', 'application/x-pdf'];
 
-export const useFileUpload = () => {
-  const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
+export const useFileUpload = (initialFile: UploadedFile | null = null) => {
+  const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(initialFile);
   const [error, setError] = useState<string>('');
 
   const isImage = useMemo(

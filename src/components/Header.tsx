@@ -1,9 +1,23 @@
 import { useLocation, useNavigate } from 'react-router-dom';
+import { clearActiveValidationSession, getCustomerSession } from '../lib/activeValidationSession';
 
 export const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const showExitButton = location.pathname !== '/';
+  const exitSession = () => {
+    clearActiveValidationSession();
+    navigate('/');
+  };
+  const goHomeWithinSession = () => {
+    const customer = getCustomerSession();
+    if (customer) {
+      navigate('/facturas', { state: { customer } });
+      return;
+    }
+
+    navigate('/');
+  };
 
   return (
     <header>
@@ -12,7 +26,7 @@ export const Header = () => {
         <div className="mx-auto flex w-full max-w-[1500px] items-center justify-between">
           <button
             type="button"
-            onClick={() => navigate('/')}
+            onClick={goHomeWithinSession}
             className="inline-flex items-center text-left"
           >
             <img
@@ -25,7 +39,7 @@ export const Header = () => {
             {showExitButton ? (
               <button
                 type="button"
-                onClick={() => navigate('/')}
+                onClick={exitSession}
                 className="hidden rounded-full border border-border bg-white px-3.5 py-1.5 text-sm font-semibold text-brand-800 transition hover:border-brand-200 hover:bg-brand-50 md:inline-flex"
               >
                 Salir
@@ -39,7 +53,7 @@ export const Header = () => {
         <div className="mx-auto w-full max-w-[1500px] px-4 py-3 sm:px-6 md:hidden lg:px-8">
           <button
             type="button"
-            onClick={() => navigate('/')}
+            onClick={exitSession}
             className="w-full rounded-full border border-border bg-white px-3 py-2 text-center text-xs font-semibold text-brand-800 transition hover:bg-brand-50"
           >
             Salir

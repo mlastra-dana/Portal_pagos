@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { PrimaryButton } from '../components/ui/PrimaryButton';
 import { SectionTitle } from '../components/ui/SectionTitle';
+import { getActiveValidationSession } from '../lib/activeValidationSession';
 import { formatMoney } from '../lib/invoiceValidation';
 import { formatFileSize } from '../lib/utils';
 import type { DemoCustomer, PendingInvoice } from '../types/invoice';
@@ -33,10 +34,19 @@ export const ComplementaryDocumentsPage = () => {
   const [error, setError] = useState('');
 
   const state = (location.state ?? {}) as LocationState;
-  const extraction = state.extraction;
-  const comprobante = state.comprobante;
-  const customer = state.customer;
-  const invoice = state.invoice;
+  const activeSession = getActiveValidationSession();
+  const extraction = state.extraction ?? activeSession?.result;
+  const comprobante = state.comprobante ?? (
+    activeSession?.uploadedFile
+      ? {
+        name: activeSession.uploadedFile.name,
+        size: activeSession.uploadedFile.size,
+        type: activeSession.uploadedFile.type,
+      }
+      : undefined
+  );
+  const customer = state.customer ?? activeSession?.customer;
+  const invoice = state.invoice ?? activeSession?.invoice;
 
   const docsTotalSize = useMemo(
     () => docs.reduce((acc, item) => acc + item.file.size, 0),
@@ -137,27 +147,28 @@ export const ComplementaryDocumentsPage = () => {
                 <p className="mt-2 text-xs text-muted">Formatos permitidos: PDF, JPG, PNG, WEBP, DOC, DOCX.</p>
               </div>
 
-              <div className="space-y-2 rounded-md border border-border bg-white p-3">
-                <p className="text-sm font-semibold text-brand-800">Archivos adjuntos ({docs.length})</p>
-                {docs.length === 0 ? <p className="text-sm text-muted">Sin documentos complementarios.</p> : null}
-                {docs.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-3 rounded-md border border-border bg-white px-3 py-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-text">{item.file.name}</p>
-                      <p className="text-xs text-muted">{formatFileSize(item.file.size)}</p>
+              {docs.length > 0 ? (
+                <div className="space-y-2 rounded-md border border-border bg-white p-3">
+                  <p className="text-sm font-semibold text-brand-800">Archivos adjuntos ({docs.length})</p>
+                  {docs.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between gap-3 rounded-md border border-border bg-white px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-text">{item.file.name}</p>
+                        <p className="text-xs text-muted">{formatFileSize(item.file.size)}</p>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label={`Quitar ${item.file.name}`}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-white text-lg font-semibold leading-none text-brand-600 transition hover:border-brand-300 hover:bg-brand-50"
+                        onClick={() => removeDoc(item.id)}
+                      >
+                        ×
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      aria-label={`Quitar ${item.file.name}`}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-white text-lg font-semibold leading-none text-brand-600 transition hover:border-brand-300 hover:bg-brand-50"
-                      onClick={() => removeDoc(item.id)}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-                {docs.length > 0 ? <p className="text-xs text-muted">Total: {formatFileSize(docsTotalSize)}</p> : null}
-              </div>
+                  ))}
+                  <p className="text-xs text-muted">Total: {formatFileSize(docsTotalSize)}</p>
+                </div>
+              ) : null}
 
               {error ? <p className="text-sm font-medium text-danger">{error}</p> : null}
 

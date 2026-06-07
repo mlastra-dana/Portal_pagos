@@ -33,3 +33,39 @@ input,
 button {
   font: inherit;
 }
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: currentColor;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+.login-id-input,
+.login-id-select {
+  color: #0f0f1f;
+  -webkit-text-fill-color: #0f0f1f;
+}
+
+.login-id-input:-webkit-autofill,
+.login-id-input:-webkit-autofill:hover,
+.login-id-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #0f0f1f;
+  box-shadow: 0 0 0 1000px #e8effa inset;
+  caret-color: #0f0f1f;
+}
+
+.login-password-input {
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+  caret-color: #ffffff;
+}
+
+.login-password-input:-webkit-autofill,
+.login-password-input:-webkit-autofill:hover,
+.login-password-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #ffffff;
+  box-shadow: 0 0 0 1000px rgba(255, 255, 255, 0.12) inset;
+  caret-color: #ffffff;
+}

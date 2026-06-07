@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { SectionTitle } from '../components/ui/SectionTitle';
+import { getCustomerSession } from '../lib/activeValidationSession';
 import { formatDueDate, formatMoney } from '../lib/invoiceValidation';
 import { pendingInvoices } from '../mocks/pendingInvoices';
 import type { DemoCustomer, PendingInvoice } from '../types/invoice';
@@ -20,7 +21,7 @@ export const PendingInvoicesPage = () => {
   const location = useLocation();
   const [visibleInvoice, setVisibleInvoice] = useState<PendingInvoice | null>(null);
   const state = (location.state ?? {}) as LocationState;
-  const customer = state.customer;
+  const customer = state.customer ?? getCustomerSession();
 
   if (!customer) {
     return <Navigate to="/" replace />;
